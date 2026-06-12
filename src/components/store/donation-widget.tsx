@@ -48,11 +48,10 @@ export function DonationWidget({ creator }: DonationWidgetProps) {
 
     setIsSubmitting(true);
     try {
-      const response = await fetch("/api/store", {
+      const response = await fetch("/api/donations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          type: "donation",
           creatorId: creator.id,
           amount: donationAmount,
           message,

@@ -39,7 +39,7 @@ export default function LoginPage() {
   };
 
   const handleDemoLogin = async () => {
-    const result = await login("sarah@keevan.store", "demo123");
+    const result = await login("sarah@keevan.store", "sarah123");
     if (result.success) {
       toast.success("Welcome to the demo!");
       router.push("/dashboard");

@@ -79,10 +79,13 @@ function PaymentCancelContent() {
         {/* Help text */}
         <p className="text-center text-xs text-muted-foreground">
           Need help?{" "}
-          <span className="inline-flex items-center gap-1 text-emerald-600">
+          <Link
+            href="/contact"
+            className="inline-flex items-center gap-1 text-emerald-600 hover:text-emerald-700 underline"
+          >
             <Mail className="h-3 w-3" />
             Contact support
-          </span>
+          </Link>
         </p>
       </div>
     </div>

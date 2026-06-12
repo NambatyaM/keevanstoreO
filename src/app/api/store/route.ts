@@ -136,6 +136,20 @@ export async function PUT(request: NextRequest) {
       );
     }
 
+    // Whitelist of fields that creators are allowed to update
+    const ALLOWED_FIELDS = [
+      "displayName", "bio", "photoUrl", "bannerUrl",
+      "socialLinks", "donationsEnabled", "donationGoal",
+    ] as const;
+
+    // Filter updates to only allowed fields (prevents balance/admin manipulation)
+    const safeUpdates: Record<string, unknown> = {};
+    for (const key of ALLOWED_FIELDS) {
+      if (key in updates) {
+        safeUpdates[key] = updates[key as keyof typeof updates];
+      }
+    }
+
     if (isUsingMockData()) {
       const creator = getMockCreatorById(creatorId);
       if (!creator) {
@@ -147,7 +161,7 @@ export async function PUT(request: NextRequest) {
 
       const updatedCreator: Creator = {
         ...creator,
-        ...updates,
+        ...(safeUpdates as Partial<Creator>),
         updatedAt: new Date().toISOString(),
       };
 
@@ -175,8 +189,8 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    // Map camelCase updates to snake_case for DB
-    const dbUpdates = mapCreatorToDb(updates);
+    // Map camelCase safe updates to snake_case for DB
+    const dbUpdates = mapCreatorToDb(safeUpdates);
 
     const { data: updatedRow, error: updateError } = await supabase
       .from("creators")

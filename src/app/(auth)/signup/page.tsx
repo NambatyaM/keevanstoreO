@@ -3,7 +3,7 @@
 // ============================================================
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -40,8 +40,15 @@ export default function SignupPage() {
   const router = useRouter();
 
   // Debounced username check
+  const checkUsernameRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const checkUsername = useCallback(
     (value: string) => {
+      // Clear any pending check
+      if (checkUsernameRef.current) {
+        clearTimeout(checkUsernameRef.current);
+      }
+
       if (!value) {
         setUsernameStatus("idle");
         return;
@@ -59,7 +66,7 @@ export default function SignupPage() {
       }
 
       setUsernameStatus("checking");
-      const timeout = setTimeout(async () => {
+      checkUsernameRef.current = setTimeout(async () => {
         try {
           const res = await fetch(
             `/api/auth/signup?check_username=${encodeURIComponent(value)}`
@@ -70,11 +77,18 @@ export default function SignupPage() {
           setUsernameStatus("idle");
         }
       }, 500);
-
-      return () => clearTimeout(timeout);
     },
     []
   );
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (checkUsernameRef.current) {
+        clearTimeout(checkUsernameRef.current);
+      }
+    };
+  }, []);
 
   const handleUsernameChange = (value: string) => {
     const sanitized = value.toLowerCase().replace(/[^a-z0-9-]/g, "");

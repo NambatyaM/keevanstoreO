@@ -117,6 +117,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validate donor email when not anonymous
+    if (!anonymous && donorEmail) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(donorEmail.trim())) {
+        return NextResponse.json(
+          { success: false, error: "Invalid donor email address" },
+          { status: 400 }
+        );
+      }
+    }
+
     if (isUsingMockData()) {
       const creator = getMockCreatorById(creatorId);
       if (!creator) {

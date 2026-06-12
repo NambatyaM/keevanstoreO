@@ -39,7 +39,7 @@ export default function DashboardPage() {
         const prodRes = await fetch(`/api/products?creator_id=${user?.id}`);
         const prodData = await prodRes.json();
         if (prodData.success) {
-          setProducts(prodData.data?.length || 0);
+          setProducts(prodData.data || []);
         }
 
         // Build stats

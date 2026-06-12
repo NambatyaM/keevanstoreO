@@ -3,7 +3,7 @@
 // ============================================================
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Wallet,
   Plus,
@@ -39,39 +39,6 @@ import { MIN_WITHDRAWAL_AMOUNT, WITHDRAWAL_STATUS_LABELS } from "@/lib/constants
 import { toast } from "sonner";
 import type { Withdrawal, WithdrawalStatus } from "@/types";
 
-const mockWithdrawals: Withdrawal[] = [
-  {
-    id: "wd-1",
-    creatorId: "creator-1",
-    amount: 200000,
-    status: "completed" as WithdrawalStatus,
-    phoneNumber: "256700000001",
-    provider: "MTN Mobile Money",
-    createdAt: "2026-02-20T10:00:00Z",
-    processedAt: "2026-02-20T12:00:00Z",
-  },
-  {
-    id: "wd-2",
-    creatorId: "creator-1",
-    amount: 300000,
-    status: "pending" as WithdrawalStatus,
-    phoneNumber: "256700000001",
-    provider: "Airtel Money",
-    createdAt: "2026-03-01T08:00:00Z",
-    processedAt: null,
-  },
-  {
-    id: "wd-3",
-    creatorId: "creator-1",
-    amount: 150000,
-    status: "processing" as WithdrawalStatus,
-    phoneNumber: "256700000001",
-    provider: "MTN Mobile Money",
-    createdAt: "2026-03-02T09:00:00Z",
-    processedAt: null,
-  },
-];
-
 function getStatusIcon(status: WithdrawalStatus) {
   switch (status) {
     case "completed":
@@ -94,6 +61,30 @@ export default function WithdrawalsPage() {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [provider, setProvider] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch withdrawals from API
+  useEffect(() => {
+    async function fetchWithdrawals() {
+      if (!user?.id) return;
+      try {
+        const res = await fetch(`/api/withdrawals?creator_id=${user.id}`);
+        const data = await res.json();
+        if (data.success) {
+          setWithdrawals(data.data || []);
+        } else {
+          toast.error(data.error || "Failed to load withdrawals");
+        }
+      } catch {
+        toast.error("Failed to load withdrawals");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchWithdrawals();
+  }, [user?.id]);
 
   const handleRequestWithdrawal = async () => {
     const withdrawalAmount = parseInt(amount);
@@ -114,15 +105,38 @@ export default function WithdrawalsPage() {
     }
 
     setIsSubmitting(true);
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    try {
+      const res = await fetch("/api/withdrawals", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          creatorId: user?.id,
+          amount: withdrawalAmount,
+          phoneNumber,
+          provider,
+        }),
+      });
 
-    toast.success("Withdrawal request submitted!");
-    setShowNewDialog(false);
-    setAmount("");
-    setPhoneNumber("");
-    setProvider("");
-    setIsSubmitting(false);
+      const data = await res.json();
+
+      if (data.success) {
+        toast.success("Withdrawal request submitted!");
+        setShowNewDialog(false);
+        setAmount("");
+        setPhoneNumber("");
+        setProvider("");
+        // Add the new withdrawal to the list
+        if (data.data) {
+          setWithdrawals((prev) => [data.data, ...prev]);
+        }
+      } else {
+        toast.error(data.error || "Failed to submit withdrawal request");
+      }
+    } catch {
+      toast.error("Failed to submit withdrawal request. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -176,8 +190,8 @@ export default function WithdrawalsPage() {
                     <SelectValue placeholder="Select provider" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="mtn">MTN Mobile Money</SelectItem>
-                    <SelectItem value="airtel">Airtel Money</SelectItem>
+                    <SelectItem value="MTN Mobile Money">MTN Mobile Money</SelectItem>
+                    <SelectItem value="Airtel Money">Airtel Money</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -232,9 +246,13 @@ export default function WithdrawalsPage() {
           <CardTitle className="text-base">Withdrawal History</CardTitle>
         </CardHeader>
         <CardContent>
-          {mockWithdrawals.length > 0 ? (
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : withdrawals.length > 0 ? (
             <div className="space-y-3">
-              {mockWithdrawals.map((wd) => (
+              {withdrawals.map((wd) => (
                 <div
                   key={wd.id}
                   className="flex items-center justify-between py-3 border-b last:border-0"

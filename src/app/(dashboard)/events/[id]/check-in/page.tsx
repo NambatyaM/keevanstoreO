@@ -3,7 +3,7 @@
 // ============================================================
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   QrCode,
@@ -12,6 +12,7 @@ import {
   ArrowLeft,
   Users,
   Loader2,
+  AlertCircle,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,58 +20,57 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
-import type { Ticket } from "@/types";
-
-const mockTickets: Ticket[] = [
-  {
-    id: "ticket-1",
-    orderId: "order-4",
-    productId: "prod-5",
-    buyerEmail: "alice@example.com",
-    buyerName: "Alice Nalubega",
-    qrCode: "QR-ALICE-001",
-    checkedIn: false,
-    checkedInAt: null,
-    createdAt: "2026-02-27T09:15:00Z",
-  },
-  {
-    id: "ticket-2",
-    orderId: "order-7",
-    productId: "prod-5",
-    buyerEmail: "robert@example.com",
-    buyerName: "Robert Mugisha",
-    qrCode: "QR-ROBERT-002",
-    checkedIn: true,
-    checkedInAt: "2026-04-15T19:30:00Z",
-    createdAt: "2026-02-25T12:05:00Z",
-  },
-  {
-    id: "ticket-3",
-    orderId: "order-9",
-    productId: "prod-5",
-    buyerEmail: "samuel@example.com",
-    buyerName: "Samuel Kato",
-    qrCode: "QR-SAMUEL-003",
-    checkedIn: false,
-    checkedInAt: null,
-    createdAt: "2026-02-20T15:05:00Z",
-  },
-];
+import type { Ticket, Product } from "@/types";
 
 export default function CheckInPage() {
   const params = useParams();
   const router = useRouter();
   const eventId = params.id as string;
+  const { user } = useAuth();
 
-  const [tickets, setTickets] = useState<Ticket[]>(mockTickets);
+  const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [event, setEvent] = useState<Product | null>(null);
   const [search, setSearch] = useState("");
-  const [eventName, setEventName] = useState("Kampala Cultural Night");
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [checkingIn, setCheckingIn] = useState<string | null>(null);
+
+  // Fetch event details and tickets
+  const fetchEventData = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      // Fetch event details from products API (events are products of type "event")
+      const eventRes = await fetch(`/api/products/${eventId}`);
+      const eventData = await eventRes.json();
+
+      if (eventData.success && eventData.data) {
+        setEvent(eventData.data);
+      } else {
+        setError(eventData.error || "Event not found");
+        setLoading(false);
+        return;
+      }
+
+      // Fetch tickets for this event
+      const ticketsRes = await fetch(`/api/tickets?product_id=${eventId}`);
+      const ticketsData = await ticketsRes.json();
+
+      if (ticketsData.success) {
+        setTickets(ticketsData.data || []);
+      } else {
+        setError(ticketsData.error || "Failed to load tickets");
+      }
+    } catch {
+      setError("Failed to load event data. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }, [eventId]);
 
   useEffect(() => {
-    // In production, fetch event and tickets from API
-    setTimeout(() => setLoading(false), 500);
-  }, [eventId]);
+    fetchEventData();
+  }, [fetchEventData]);
 
   const filteredTickets = tickets.filter(
     (t) =>
@@ -82,30 +82,94 @@ export default function CheckInPage() {
   const checkedInCount = tickets.filter((t) => t.checkedIn).length;
   const totalCount = tickets.length;
 
-  const handleCheckIn = (ticketId: string) => {
-    setTickets(
-      tickets.map((t) =>
-        t.id === ticketId
-          ? { ...t, checkedIn: true, checkedInAt: new Date().toISOString() }
-          : t
-      )
-    );
-    toast.success("Attendee checked in successfully! ✅");
+  const handleCheckIn = async (ticketId: string) => {
+    setCheckingIn(ticketId);
+    try {
+      const res = await fetch("/api/tickets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ticketId, action: "checkin" }),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        setTickets((prev) =>
+          prev.map((t) =>
+            t.id === ticketId
+              ? { ...t, checkedIn: true, checkedInAt: new Date().toISOString() }
+              : t
+          )
+        );
+        toast.success("Attendee checked in successfully! ✅");
+      } else {
+        toast.error(data.error || "Failed to check in attendee");
+      }
+    } catch {
+      toast.error("Failed to check in attendee. Please try again.");
+    } finally {
+      setCheckingIn(null);
+    }
   };
 
-  const handleUndoCheckIn = (ticketId: string) => {
-    setTickets(
-      tickets.map((t) =>
-        t.id === ticketId ? { ...t, checkedIn: false, checkedInAt: null } : t
-      )
-    );
-    toast.info("Check-in undone");
+  const handleUndoCheckIn = async (ticketId: string) => {
+    setCheckingIn(ticketId);
+    try {
+      const res = await fetch("/api/tickets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ticketId, action: "undo" }),
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        setTickets((prev) =>
+          prev.map((t) =>
+            t.id === ticketId ? { ...t, checkedIn: false, checkedInAt: null } : t
+          )
+        );
+        toast.info("Check-in undone");
+      } else {
+        toast.error(data.error || "Failed to undo check-in");
+      }
+    } catch {
+      toast.error("Failed to undo check-in. Please try again.");
+    } finally {
+      setCheckingIn(null);
+    }
   };
 
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
         <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
+      </div>
+    );
+  }
+
+  if (error && !event) {
+    return (
+      <div className="space-y-6 max-w-2xl">
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="icon" onClick={() => router.push("/events")}>
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div>
+            <h2 className="text-xl font-semibold">Check-In</h2>
+          </div>
+        </div>
+        <Card>
+          <CardContent className="p-8 text-center">
+            <AlertCircle className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+            <p className="text-sm text-muted-foreground">{error}</p>
+            <Button
+              variant="outline"
+              className="mt-4"
+              onClick={fetchEventData}
+            >
+              Try Again
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }
@@ -119,7 +183,9 @@ export default function CheckInPage() {
         </Button>
         <div>
           <h2 className="text-xl font-semibold">Check-In</h2>
-          <p className="text-sm text-muted-foreground">{eventName}</p>
+          <p className="text-sm text-muted-foreground">
+            {event?.title || "Loading event..."}
+          </p>
         </div>
       </div>
 
@@ -191,18 +257,30 @@ export default function CheckInPage() {
                   variant="ghost"
                   size="sm"
                   onClick={() => handleUndoCheckIn(ticket.id)}
+                  disabled={checkingIn === ticket.id}
                   className="text-muted-foreground"
                 >
-                  Undo
+                  {checkingIn === ticket.id ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    "Undo"
+                  )}
                 </Button>
               ) : (
                 <Button
                   size="sm"
                   className="bg-emerald-600 hover:bg-emerald-700 text-white"
                   onClick={() => handleCheckIn(ticket.id)}
+                  disabled={checkingIn === ticket.id}
                 >
-                  <CheckCircle2 className="h-4 w-4 mr-1" />
-                  Check In
+                  {checkingIn === ticket.id ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <>
+                      <CheckCircle2 className="h-4 w-4 mr-1" />
+                      Check In
+                    </>
+                  )}
                 </Button>
               )}
             </CardContent>

@@ -6,6 +6,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { isUsingMockData } from "@/lib/mock-data";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { notifyContactForm } from "@/lib/notifications";
+import { checkRateLimit, getClientId } from "@/lib/rate-limit";
 
 // In-memory store for mock mode (resets on server restart)
 const mockContactMessages: Array<{
@@ -20,6 +21,16 @@ const mockContactMessages: Array<{
 
 export async function POST(request: NextRequest) {
   try {
+    // Rate limit: 3 messages per minute per IP
+    const clientId = getClientId(request);
+    const rateLimit = checkRateLimit(`contact:${clientId}`, 3, 60 * 1000);
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { success: false, error: "Too many messages. Please try again later." },
+        { status: 429 }
+      );
+    }
+
     const body = await request.json();
     const { name, email, subject, message } = body;
 
@@ -146,9 +157,19 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// GET /api/contact — Admin: list all contact messages (for future admin panel)
+// GET /api/contact — Admin: list all contact messages
 export async function GET(request: NextRequest) {
   try {
+    // Require admin authentication
+    const { verifyAdmin } = await import("@/lib/auth-helpers");
+    const adminResult = await verifyAdmin(request);
+    if (!adminResult.isAdmin) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized: admin access required" },
+        { status: 403 }
+      );
+    }
+
     const page = parseInt(request.nextUrl.searchParams.get("page") || "1");
     const limit = parseInt(request.nextUrl.searchParams.get("limit") || "20");
     const unreadOnly = request.nextUrl.searchParams.get("unread") === "true";

@@ -8,6 +8,7 @@ import { Calendar, Download, ImageIcon, MapPin } from "lucide-react";
 import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { CurrencyDisplay } from "@/components/shared/currency-display";
 import { PRODUCT_TYPE_LABELS } from "@/lib/constants";
 import type { Product, ProductType } from "@/types";
@@ -162,6 +163,3 @@ export function ProductCard({
     </Card>
   );
 }
-
-// Need cn import
-import { cn } from "@/lib/utils";

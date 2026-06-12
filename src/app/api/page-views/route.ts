@@ -47,10 +47,14 @@ export async function POST(request: NextRequest) {
       insertData.product_id = productId;
     }
 
-    // Generate a hash of the viewer's IP for deduplication
+    // Generate a SHA-256 hash of the viewer's IP for privacy-preserving deduplication
     const forwarded = request.headers.get("x-forwarded-for");
     const ip = forwarded?.split(",")[0]?.trim() || "unknown";
-    const viewerIpHash = Buffer.from(ip).toString("base64");
+    const encoder = new TextEncoder();
+    const data = encoder.encode(ip + (process.env.NEXTAUTH_SECRET || "keevan-salt"));
+    const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const viewerIpHash = hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
     insertData.viewer_ip_hash = viewerIpHash;
 
     const { error } = await serviceClient

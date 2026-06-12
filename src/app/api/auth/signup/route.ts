@@ -7,10 +7,21 @@ import { isUsingMockData, isMockUsernameAvailable, mockCreators } from "@/lib/mo
 import { USERNAME_RULES } from "@/lib/constants";
 import { createServerSupabaseClient, createServiceRoleClient } from "@/lib/supabase/server";
 import { mapCreatorFromDb } from "@/lib/db-mappers";
+import { checkRateLimit, getClientId } from "@/lib/rate-limit";
 import type { Creator } from "@/types";
 
 export async function POST(request: NextRequest) {
   try {
+    // Rate limit: 3 signup attempts per minute per IP
+    const clientId = getClientId(request);
+    const rateLimit = checkRateLimit(`signup:${clientId}`, 3, 60 * 1000);
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { success: false, error: "Too many signup attempts. Please try again later." },
+        { status: 429, headers: { "Retry-After": String(Math.ceil((rateLimit.resetTime - Date.now()) / 1000)) } }
+      );
+    }
+
     const { email, password, username, displayName } = await request.json();
 
     if (!email || !password || !username || !displayName) {
@@ -78,10 +89,24 @@ export async function POST(request: NextRequest) {
         updatedAt: new Date().toISOString(),
       };
 
-      return NextResponse.json({
+      // Persist the new creator in mock data so they can log back in
+      mockCreators.push(newCreator);
+
+      const response = NextResponse.json({
         success: true,
         data: newCreator,
       });
+
+      // Set auth cookie for middleware compatibility
+      response.cookies.set("keevan-auth", JSON.stringify({ id: newCreator.id, email: newCreator.email }), {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        path: "/",
+        maxAge: 60 * 60 * 24 * 7,
+        sameSite: "lax",
+      });
+
+      return response;
     }
 
     // Real Supabase signup
@@ -163,7 +188,8 @@ export async function POST(request: NextRequest) {
 
     // Set auth cookie for middleware compatibility
     response.cookies.set("keevan-auth", JSON.stringify({ id: authData.user.id, email: authData.user.email }), {
-      httpOnly: false,
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
       path: "/",
       maxAge: 60 * 60 * 24 * 7,
       sameSite: "lax",

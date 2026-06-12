@@ -112,18 +112,27 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { productId, buyerEmail, buyerName, paymentMethod, creatorId } = body;
+    const { productId, buyerEmail, buyerName, paymentMethod } = body;
 
-    // Validate required fields
-    if (!productId || !buyerEmail || !buyerName || !paymentMethod || !creatorId) {
+    // Validate required fields (creatorId is NOT accepted from body — derived from product)
+    if (!productId || !buyerEmail || !buyerName || !paymentMethod) {
       return NextResponse.json(
-        { success: false, error: "Missing required fields: productId, buyerEmail, buyerName, paymentMethod, creatorId" },
+        { success: false, error: "Missing required fields: productId, buyerEmail, buyerName, paymentMethod" },
+        { status: 400 }
+      );
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(buyerEmail.trim())) {
+      return NextResponse.json(
+        { success: false, error: "Invalid buyer email address" },
         { status: 400 }
       );
     }
 
     if (isUsingMockData()) {
-      // Get product details
+      // Get product details — derive creatorId from product
       const product = getMockProductById(productId);
       if (!product) {
         return NextResponse.json(
@@ -131,6 +140,9 @@ export async function POST(request: NextRequest) {
           { status: 404 }
         );
       }
+
+      // SECURITY: Derive creatorId from the product, NOT from the request body
+      const creatorId = product.creatorId;
 
       // Check if product is active
       if (product.status !== "active") {
@@ -247,6 +259,9 @@ export async function POST(request: NextRequest) {
     }
 
     const product = mapProductFromDb(productRow);
+
+    // SECURITY: Derive creatorId from the product, NOT from the request body
+    const creatorId = product.creatorId;
 
     // Validate product is active
     if (product.status !== "active") {

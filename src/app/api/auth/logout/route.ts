@@ -17,7 +17,8 @@ export async function POST() {
   const response = NextResponse.json({ success: true });
   // Clear auth cookie
   response.cookies.set("keevan-auth", "", {
-    httpOnly: false,
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
     path: "/",
     maxAge: 0,
     sameSite: "lax",

@@ -15,10 +15,21 @@ import { PLATFORM_FEE_PERCENT } from "@/lib/constants";
 import { submitOrder, registerIPN } from "@/lib/pesapal";
 import { createServerSupabaseClient, createServiceRoleClient } from "@/lib/supabase/server";
 import { mapProductFromDb, mapOrderFromDb } from "@/lib/db-mappers";
+import { checkRateLimit, getClientId } from "@/lib/rate-limit";
 import type { Order, OrderStatus, PaymentMethod } from "@/types";
 
 export async function POST(request: NextRequest) {
   try {
+    // Rate limit: 10 checkout attempts per minute per IP
+    const clientId = getClientId(request);
+    const rateLimit = checkRateLimit(`checkout:${clientId}`, 10, 60 * 1000);
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { success: false, error: "Too many checkout attempts. Please try again later." },
+        { status: 429 }
+      );
+    }
+
     const body = await request.json();
     const { productId, buyerEmail, buyerName, paymentMethod } = body;
 
@@ -29,6 +40,15 @@ export async function POST(request: NextRequest) {
           success: false,
           error: "Missing required fields: productId, buyerEmail, buyerName, paymentMethod",
         },
+        { status: 400 }
+      );
+    }
+
+    // Validate buyer email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(buyerEmail.trim())) {
+      return NextResponse.json(
+        { success: false, error: "Invalid buyer email address" },
         { status: 400 }
       );
     }

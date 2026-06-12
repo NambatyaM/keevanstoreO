@@ -6,9 +6,20 @@ import { NextRequest, NextResponse } from "next/server";
 import { isUsingMockData, getMockCreatorById, mockCreators, getMockPassword } from "@/lib/mock-data";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { mapCreatorFromDb } from "@/lib/db-mappers";
+import { checkRateLimit, getClientId } from "@/lib/rate-limit";
 
 export async function POST(request: NextRequest) {
   try {
+    // Rate limit: 5 login attempts per minute per IP
+    const clientId = getClientId(request);
+    const rateLimit = checkRateLimit(`login:${clientId}`, 5, 60 * 1000);
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { success: false, error: "Too many login attempts. Please try again later." },
+        { status: 429, headers: { "Retry-After": String(Math.ceil((rateLimit.resetTime - Date.now()) / 1000)) } }
+      );
+    }
+
     const { email, password } = await request.json();
 
     if (!email || !password) {
@@ -42,7 +53,8 @@ export async function POST(request: NextRequest) {
       });
       // Set auth cookie so middleware can read it
       response.cookies.set("keevan-auth", JSON.stringify({ id: creator.id, email: creator.email }), {
-        httpOnly: false,
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
         path: "/",
         maxAge: 60 * 60 * 24 * 7, // 7 days
         sameSite: "lax",
@@ -94,7 +106,8 @@ export async function POST(request: NextRequest) {
 
     // Set auth cookie for middleware compatibility
     response.cookies.set("keevan-auth", JSON.stringify({ id: authData.user.id, email: authData.user.email }), {
-      httpOnly: false,
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
       path: "/",
       maxAge: 60 * 60 * 24 * 7, // 7 days
       sameSite: "lax",

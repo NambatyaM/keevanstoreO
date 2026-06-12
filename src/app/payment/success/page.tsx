@@ -19,6 +19,8 @@ import {
   FileText,
   Clock,
   ShieldCheck,
+  AlertTriangle,
+  RefreshCw,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -52,6 +54,7 @@ function PaymentSuccessContent() {
   const [creator, setCreator] = useState<Creator | null>(null);
   const [downloadSession, setDownloadSession] = useState<DownloadSessionInfo | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function fetchOrder() {
@@ -89,8 +92,9 @@ function PaymentSuccessContent() {
             }
           }
         }
-      } catch {
-        // Order fetch failed
+      } catch (err) {
+        console.error("Order fetch failed:", err);
+        setError("Failed to load order details. Your payment may still be processing.");
       } finally {
         setLoading(false);
       }
@@ -105,6 +109,27 @@ function PaymentSuccessContent() {
         <div className="text-center">
           <Loader2 className="h-8 w-8 animate-spin text-emerald-600 mx-auto mb-4" />
           <p className="text-muted-foreground">Confirming payment...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <div className="max-w-md w-full text-center space-y-4">
+          <AlertTriangle className="h-12 w-12 text-amber-500 mx-auto" />
+          <h2 className="text-xl font-bold">Something went wrong</h2>
+          <p className="text-sm text-muted-foreground">{error}</p>
+          <div className="flex flex-col gap-2 pt-2">
+            <Button variant="outline" onClick={() => window.location.reload()}>
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Try Again
+            </Button>
+            <Button variant="ghost" asChild>
+              <Link href="/">Back to Home</Link>
+            </Button>
+          </div>
         </div>
       </div>
     );

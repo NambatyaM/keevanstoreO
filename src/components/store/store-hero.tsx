@@ -5,7 +5,7 @@
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { Share2, Instagram } from "lucide-react";
+import { Share2, Instagram, Music, Twitter, MessageCircle } from "lucide-react";
 import { CopyButton } from "@/components/shared/copy-button";
 import type { Creator } from "@/types";
 
@@ -97,6 +97,12 @@ function SocialIcon({ platform }: { platform: string }) {
   switch (platform) {
     case "instagram":
       return <Instagram className="h-4 w-4" />;
+    case "tiktok":
+      return <Music className="h-4 w-4" />;
+    case "twitter":
+      return <Twitter className="h-4 w-4" />;
+    case "whatsapp":
+      return <MessageCircle className="h-4 w-4" />;
     default:
       return <Share2 className="h-4 w-4" />;
   }

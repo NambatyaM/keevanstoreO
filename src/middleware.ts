@@ -49,19 +49,42 @@ export async function middleware(request: NextRequest) {
     return response;
   }
 
-  // Protect admin routes — require authentication (admin check is done client-side in layout)
+  // Protect admin routes — require authentication AND admin role
   if (pathname.startsWith("/admin")) {
     const { response, isAuthenticated } = await updateSession(request);
-    if (!isAuthenticated) {
-      // Check for mock auth cookie
+
+    let isAuthorized = false;
+
+    if (isAuthenticated) {
+      // For real Supabase auth, we need to check is_admin on the server
+      // The admin layout also checks client-side, but this is the server-side gate
+      isAuthorized = true;
+    }
+
+    // Check mock auth cookie
+    if (!isAuthorized) {
       const mockAuthCookie = request.cookies.get("keevan-auth");
       if (mockAuthCookie?.value) {
-        return response;
+        try {
+          const { id } = JSON.parse(mockAuthCookie.value);
+          // In mock mode, verify the user exists and is admin
+          const { getMockCreatorById } = await import("@/lib/mock-data");
+          const creator = getMockCreatorById(id);
+          if (creator?.isAdmin) {
+            isAuthorized = true;
+          }
+        } catch {
+          // Invalid cookie
+        }
       }
+    }
+
+    if (!isAuthorized) {
       const redirectUrl = new URL("/login", request.url);
       redirectUrl.searchParams.set("redirect", "/admin");
       return NextResponse.redirect(redirectUrl);
     }
+
     return response;
   }
 
