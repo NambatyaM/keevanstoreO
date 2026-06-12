@@ -33,28 +33,46 @@ export default function ContactPage() {
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [submitError, setSubmitError] = useState("");
 
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
   ) => {
     setFormData((prev) => ({ ...prev, [e.target.id]: e.target.value }));
+    // Clear error when user starts typing again
+    if (submitError) setSubmitError("");
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!formData.name || !formData.email || !formData.message) {
+      setSubmitError("Please fill in all required fields.");
       return;
     }
 
     setIsSubmitting(true);
+    setSubmitError("");
 
-    // Simulate form submission — in production, this would send to an API endpoint
-    // or email service like Resend
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    try {
+      const response = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      });
 
-    setIsSubmitting(false);
-    setSubmitted(true);
+      const data = await response.json();
+
+      if (data.success) {
+        setSubmitted(true);
+      } else {
+        setSubmitError(data.error || "Something went wrong. Please try again.");
+      }
+    } catch {
+      setSubmitError("Network error. Please check your connection and try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const contactMethods = [
@@ -212,6 +230,7 @@ export default function ContactPage() {
                         className="mt-6 bg-emerald-600 hover:bg-emerald-700 text-white"
                         onClick={() => {
                           setSubmitted(false);
+                          setSubmitError("");
                           setFormData({ name: "", email: "", subject: "", message: "" });
                         }}
                       >
@@ -272,6 +291,12 @@ export default function ContactPage() {
                         required
                       />
                     </div>
+
+                    {submitError && (
+                      <div className="rounded-lg border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/20 p-3 text-sm text-red-700 dark:text-red-400">
+                        {submitError}
+                      </div>
+                    )}
 
                     <Button
                       type="submit"
