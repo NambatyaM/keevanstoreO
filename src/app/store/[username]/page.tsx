@@ -1,153 +1,163 @@
-// ============================================================
-// Public Store Page — /store/[username]
-// ============================================================
-"use client";
-
-import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
-import { StoreHero } from "@/components/store/store-hero";
-import { ProductCard } from "@/components/store/product-card";
-import { DonationWidget } from "@/components/store/donation-widget";
-import { Loader2, Store, Package } from "lucide-react";
-import { Card, CardContent } from "@/components/ui/card";
+// /home/z/my-project/src/app/store/[username]/page.tsx
+import { Metadata } from "next";
+import { notFound } from "next/navigation";
+import { createServiceRoleClient } from "@/lib/supabase/server";
+import { isUsingMockData, getMockStorePublicData } from "@/lib/mock-data";
+import { mapCreatorFromDb, mapProductFromDb } from "@/lib/db-mappers";
+import { StorePageClient } from "./store-page-client";
 import type { Creator, Product } from "@/types";
 
-export default function PublicStorePage() {
-  const params = useParams();
-  const username = params.username as string;
+const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || "https://keevanstore.in";
 
-  const [creator, setCreator] = useState<Creator | null>(null);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [notFound, setNotFound] = useState(false);
+interface Props {
+  params: Promise<{ username: string }>;
+}
 
-  useEffect(() => {
-    async function fetchStore() {
-      try {
-        const res = await fetch(`/api/store?username=${encodeURIComponent(username)}`);
-        const data = await res.json();
-
-        if (data.success && data.data) {
-          setCreator(data.data.creator || data.data);
-          setProducts(data.data.products || []);
-        } else {
-          setNotFound(true);
-        }
-      } catch {
-        setNotFound(true);
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    fetchStore();
-  }, [username]);
-
-  // Track page view
-  useEffect(() => {
-    if (creator?.id) {
-      fetch("/api/page-views", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          creatorId: creator.id,
-          page: "store",
-          referrer: document.referrer || "direct",
-        }),
-      }).catch(() => {});
-    }
-  }, [creator?.id]);
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
-      </div>
-    );
+async function getStoreData(username: string) {
+  if (isUsingMockData()) {
+    const storeData = getMockStorePublicData(username);
+    if (!storeData) return null;
+    return storeData;
   }
 
-  if (notFound || !creator) {
-    return (
-      <div className="min-h-screen flex items-center justify-center p-4">
-        <Card className="max-w-md w-full">
-          <CardContent className="p-8 text-center">
-            <Store className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-            <h2 className="text-xl font-bold text-foreground">Store Not Found</h2>
-            <p className="text-muted-foreground mt-2">
-              The store &quot;@{username}&quot; doesn&apos;t exist or has been deactivated.
-            </p>
-            <a
-              href="/"
-              className="inline-block mt-4 text-sm text-emerald-600 hover:text-emerald-700 font-medium"
-            >
-              Go to Keevan Store
-            </a>
-          </CardContent>
-        </Card>
-      </div>
-    );
+  const supabase = createServiceRoleClient();
+  if (!supabase) return null;
+
+  const { data: creatorRow } = await supabase
+    .from("creators")
+    .select("*")
+    .eq("username", username)
+    .eq("is_active", true)
+    .single();
+
+  if (!creatorRow) return null;
+
+  const creator = mapCreatorFromDb(creatorRow);
+
+  const { data: productRows } = await supabase
+    .from("products")
+    .select("*")
+    .eq("creator_id", creator.id)
+    .eq("status", "active");
+
+  const products = (productRows || []).map((row) => mapProductFromDb(row));
+
+  return { creator, products };
+}
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { username } = await params;
+  const storeData = await getStoreData(username);
+
+  if (!storeData) {
+    return {
+      title: "Store Not Found | Keevan Store",
+      description: "The store you are looking for does not exist or has been deactivated.",
+    };
   }
+
+  const { creator } = storeData;
+  const title = `${creator.displayName} — Online Store | Keevan Store`;
+  const description = creator.bio || `Shop digital products and event tickets from ${creator.displayName} on Keevan Store. Secure payments via mobile money.`;
+  const url = `${BASE_URL}/store/${username}`;
+
+  return {
+    title,
+    description,
+    keywords: [
+      creator.displayName,
+      creator.username,
+      "Keevan Store",
+      "digital products",
+      "event tickets",
+      "Uganda",
+      "online store",
+    ],
+    openGraph: {
+      title,
+      description,
+      url,
+      type: "website",
+      images: creator.photoUrl ? [{ url: creator.photoUrl }] : undefined,
+    },
+    twitter: {
+      card: creator.photoUrl ? "summary_large_image" : "summary",
+      title,
+      description,
+    },
+    alternates: {
+      canonical: url,
+    },
+  };
+}
+
+export default async function PublicStorePage({ params }: Props) {
+  const { username } = await params;
+  const storeData = await getStoreData(username);
+
+  if (!storeData) {
+    notFound();
+  }
+
+  const { creator, products } = storeData;
+
+  // JSON-LD: Person/ProfilePage schema for creator store
+  const personSchema = {
+    "@context": "https://schema.org",
+    "@type": "ProfilePage",
+    name: `${creator.displayName} — Keevan Store`,
+    description: creator.bio || `Online store for ${creator.displayName}`,
+    url: `${BASE_URL}/store/${username}`,
+    mainEntity: {
+      "@type": "Person",
+      name: creator.displayName,
+      identifier: `@${creator.username}`,
+    },
+  };
+
+  // JSON-LD: FAQPage schema for store
+  const faqSchema = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: [
+      {
+        "@type": "Question",
+        name: `How do I buy a digital product from ${creator.displayName}?`,
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: `Browse the products on ${creator.displayName}'s store page, click "Buy Now" on the product you want, enter your name and email, choose a payment method (MTN Mobile Money, Airtel Money, bank transfer, or card), and complete the payment. You will receive a download link by email within minutes.`,
+        },
+      },
+      {
+        "@type": "Question",
+        name: `What payment methods does ${creator.displayName} accept?`,
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: `${creator.displayName} accepts MTN Mobile Money, Airtel Money, bank transfer, and card payments. All payments are processed securely through Pesapal.`,
+        },
+      },
+      {
+        "@type": "Question",
+        name: `How long does delivery take after purchase from ${creator.displayName}?`,
+        acceptedAnswer: {
+          "@type": "Answer",
+          text: "Digital products are delivered instantly after payment. You will receive a download link by email that is valid for 24 hours. Event tickets are also delivered by email with a QR code for check-in.",
+        },
+      },
+    ],
+  };
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      {/* Hero / Profile */}
-      <StoreHero creator={creator} />
-
-      {/* Content */}
-      <div className="max-w-4xl mx-auto w-full px-4 sm:px-6 py-8 flex-1">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Products */}
-          <div className="lg:col-span-2">
-            <div className="flex items-center gap-2 mb-4">
-              <Package className="h-5 w-5 text-muted-foreground" />
-              <h2 className="text-lg font-semibold text-foreground">
-                Products ({products.length})
-              </h2>
-            </div>
-
-            {products.length > 0 ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {products.map((product) => (
-                  <ProductCard
-                    key={product.id}
-                    product={product}
-                    creatorUsername={username}
-                    variant="public"
-                  />
-                ))}
-              </div>
-            ) : (
-              <Card>
-                <CardContent className="p-8 text-center">
-                  <Package className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
-                  <p className="text-sm text-muted-foreground">
-                    No products available yet. Check back soon!
-                  </p>
-                </CardContent>
-              </Card>
-            )}
-          </div>
-
-          {/* Sidebar - Donations */}
-          <div className="space-y-4">
-            {creator.donationsEnabled && (
-              <DonationWidget creator={creator} />
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Footer */}
-      <footer className="border-t mt-auto">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4 text-center">
-          <p className="text-xs text-muted-foreground">
-            Powered by{" "}
-            <a href="/" className="text-emerald-600 hover:text-emerald-700 font-medium">
-              Keevan Store
-            </a>
-          </p>
-        </div>
-      </footer>
-    </div>
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(personSchema) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
+      />
+      <StorePageClient creator={creator} products={products} username={username} />
+    </>
   );
 }

@@ -1,5 +1,6 @@
 // ============================================================
 // Payment Success Page
+// Enhanced with clear next actions (conversion flow)
 // ============================================================
 "use client";
 
@@ -14,12 +15,13 @@ import {
   ArrowLeft,
   QrCode,
   Loader2,
+  ExternalLink,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { CurrencyDisplay, formatCurrency } from "@/components/shared/currency-display";
-import type { Order, Product } from "@/types";
+import type { Order, Product, Creator } from "@/types";
 
 function PaymentSuccessContent() {
   const searchParams = useSearchParams();
@@ -28,6 +30,7 @@ function PaymentSuccessContent() {
 
   const [order, setOrder] = useState<Order | null>(null);
   const [product, setProduct] = useState<Product | null>(null);
+  const [creator, setCreator] = useState<Creator | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -48,6 +51,13 @@ function PaymentSuccessContent() {
           const prodData = await prodRes.json();
           if (prodData.success && prodData.data) {
             setProduct(prodData.data);
+
+            // Fetch creator details
+            const storeRes = await fetch(`/api/store?creator_id=${data.data.creatorId}`);
+            const storeData = await storeRes.json();
+            if (storeData.success && storeData.data) {
+              setCreator(storeData.data.creator || storeData.data);
+            }
           }
         }
       } catch {
@@ -158,7 +168,7 @@ function PaymentSuccessContent() {
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
                     Check your email ({order?.buyerEmail}) for the download link.
-                    The link will be valid for 24 hours.
+                    The link will be valid for 24 hours. If you do not receive it within a few minutes, check your spam folder.
                   </p>
                 </div>
               </div>
@@ -178,7 +188,7 @@ function PaymentSuccessContent() {
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
                     Your ticket has been confirmed. Check your email for the
-                    ticket and QR code.
+                    ticket and QR code. Show the QR code at the event entrance for check-in.
                   </p>
                 </div>
               </div>
@@ -232,17 +242,36 @@ function PaymentSuccessContent() {
           </Card>
         )}
 
-        {/* Actions */}
+        {/* Next Actions — Conversion Flow */}
         <div className="space-y-3">
-          <Button
-            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
-            asChild
-          >
+          {/* Primary: Visit creator's store */}
+          {creator && (
+            <Button
+              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+              asChild
+            >
+              <Link href={`/store/${creator.username}`}>
+                <ExternalLink className="h-4 w-4 mr-2" />
+                Visit {creator.displayName}&apos;s Store
+              </Link>
+            </Button>
+          )}
+
+          {/* Secondary: Back to home / browse */}
+          <Button variant="outline" className="w-full" asChild>
             <Link href="/">
               <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Store
+              Browse More Stores
             </Link>
           </Button>
+
+          {/* Tertiary: Become a creator */}
+          <p className="text-center text-xs text-muted-foreground">
+            Want to sell your own products?{" "}
+            <Link href="/signup" className="text-emerald-600 hover:text-emerald-700 font-medium">
+              Create your free store
+            </Link>
+          </p>
         </div>
       </div>
     </div>

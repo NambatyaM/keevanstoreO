@@ -6,7 +6,7 @@ import {
   PutObjectCommand,
   DeleteObjectCommand,
 } from "@aws-sdk/client-s3";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { getSignedUrl as getPresignedUrl } from "@aws-sdk/s3-request-presigner";
 import { GetObjectCommand } from "@aws-sdk/client-s3";
 import { writeFile, mkdir, unlink } from "fs/promises";
 import path from "path";
@@ -111,7 +111,7 @@ export async function getSignedUrl(
     Key: key,
   });
 
-  return getSignedUrl(client, command, { expiresIn });
+  return getPresignedUrl(client, command, { expiresIn });
 }
 
 export function isR2Ready(): boolean {

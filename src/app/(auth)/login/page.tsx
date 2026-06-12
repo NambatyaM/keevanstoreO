@@ -31,17 +31,17 @@ export default function LoginPage() {
 
     const result = await login(email, password);
     if (result.success) {
-      toast.success("Welcome back! 🎉");
+      toast.success("Welcome back!");
       router.push("/dashboard");
     } else {
-      toast.error(result.error || "Login failed");
+      toast.error(result.error || "Login failed. Check your email and password.");
     }
   };
 
   const handleDemoLogin = async () => {
     const result = await login("sarah@keevan.store", "demo123");
     if (result.success) {
-      toast.success("Welcome to the demo! 🎉");
+      toast.success("Welcome to the demo!");
       router.push("/dashboard");
     }
   };
@@ -51,7 +51,7 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         {/* Brand */}
         <div className="text-center mb-8">
-          <Link href="/" className="inline-flex items-center gap-2">
+          <Link href="/" className="inline-flex items-center gap-2" aria-label="Back to Keevan Store home">
             <div className="h-10 w-10 rounded-xl bg-emerald-500 flex items-center justify-center">
               <span className="text-white font-bold text-lg">K</span>
             </div>
@@ -83,6 +83,7 @@ export default function LoginPage() {
                     onChange={(e) => setEmail(e.target.value)}
                     className="pl-9"
                     required
+                    autoComplete="email"
                   />
                 </div>
               </div>
@@ -94,16 +95,18 @@ export default function LoginPage() {
                   <Input
                     id="password"
                     type={showPassword ? "text" : "password"}
-                    placeholder="••••••••"
+                    placeholder="Enter your password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     className="pl-9 pr-9"
                     required
+                    autoComplete="current-password"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    aria-label={showPassword ? "Hide password" : "Show password"}
                   >
                     {showPassword ? (
                       <EyeOff className="h-4 w-4" />
@@ -126,7 +129,7 @@ export default function LoginPage() {
                     Signing in...
                   </>
                 ) : (
-                  "Sign In"
+                  "Sign In to Your Store"
                 )}
               </Button>
 
@@ -155,7 +158,7 @@ export default function LoginPage() {
                   href="/signup"
                   className="text-emerald-600 hover:text-emerald-700 font-medium"
                 >
-                  Sign up
+                  Create your store
                 </Link>
               </p>
             </CardFooter>
