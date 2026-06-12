@@ -13,6 +13,7 @@ import {
 import { MIN_WITHDRAWAL_AMOUNT } from "@/lib/constants";
 import { createServerSupabaseClient, createServiceRoleClient } from "@/lib/supabase/server";
 import { mapWithdrawalFromDb, mapWithdrawalToDb } from "@/lib/db-mappers";
+import { notifyWithdrawalRequest } from "@/lib/notifications";
 import type { Withdrawal, WithdrawalStatus } from "@/types";
 
 export async function GET(request: NextRequest) {
@@ -150,6 +151,16 @@ export async function POST(request: NextRequest) {
 
       mockWithdrawals.push(withdrawal);
 
+      // Send WhatsApp notification to admin (non-blocking)
+      notifyWithdrawalRequest({
+        creatorName: creator.displayName,
+        creatorEmail: creator.email,
+        amount,
+        phoneNumber,
+        provider,
+        withdrawalId: withdrawal.id,
+      }).catch(() => {});
+
       return NextResponse.json({
         success: true,
         data: withdrawal,
@@ -222,6 +233,25 @@ export async function POST(request: NextRequest) {
     }
 
     const withdrawal = mapWithdrawalFromDb(withdrawalRow);
+
+       // Get creator info for WhatsApp notification
+    const { data: creatorInfo } = await supabase
+      .from("creators")
+      .select("display_name, email")
+      .eq("id", creatorId)
+      .single();
+
+    // Send WhatsApp notification to admin (non-blocking)
+    if (creatorInfo) {
+      notifyWithdrawalRequest({
+        creatorName: creatorInfo.display_name,
+        creatorEmail: creatorInfo.email,
+        amount,
+        phoneNumber,
+        provider,
+        withdrawalId: withdrawal.id,
+      }).catch(() => {});
+    }
 
     return NextResponse.json({
       success: true,

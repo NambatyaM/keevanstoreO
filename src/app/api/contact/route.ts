@@ -5,6 +5,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isUsingMockData } from "@/lib/mock-data";
 import { createServiceRoleClient } from "@/lib/supabase/server";
+import { notifyContactForm } from "@/lib/notifications";
 
 // In-memory store for mock mode (resets on server restart)
 const mockContactMessages: Array<{
@@ -93,11 +94,8 @@ export async function POST(request: NextRequest) {
 
       mockContactMessages.push(contactMessage);
 
-      // Log to server console so you can see messages during development
-      console.log("📧 New contact form message (mock mode):");
-      console.log(`   From: ${contactMessage.name} <${contactMessage.email}>`);
-      console.log(`   Subject: ${contactMessage.subject || "(no subject)"}`);
-      console.log(`   Message: ${contactMessage.message.substring(0, 100)}${contactMessage.message.length > 100 ? "..." : ""}`);
+      // Send WhatsApp notification to admin
+      notifyContactForm(sanitizedData).catch(() => {});
 
       return NextResponse.json({
         success: true,
@@ -133,18 +131,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Log to server console as a backup notification
-    console.log("📧 New contact form message:");
-    console.log(`   From: ${sanitizedData.name} <${sanitizedData.email}>`);
-    console.log(`   Subject: ${sanitizedData.subject || "(no subject)"}`);
-    console.log(`   ID: ${data.id}`);
-
-    // TODO: When Resend is configured, send email notification to admin
-    // await sendEmail({
-    //   to: "support@keevanstore.in",
-    //   subject: `New Contact Message: ${sanitizedData.subject || "No Subject"}`,
-    //   body: `From: ${sanitizedData.name} (${sanitizedData.email})\n\n${sanitizedData.message}`,
-    // });
+    // Send WhatsApp notification to admin (non-blocking)
+    notifyContactForm(sanitizedData).catch(() => {});
 
     return NextResponse.json({
       success: true,
