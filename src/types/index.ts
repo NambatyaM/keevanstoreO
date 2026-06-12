@@ -52,6 +52,7 @@ export interface Creator {
   totalEarnings: number;
   totalSales: number;
   totalViews: number;
+  isAdmin: boolean;
   createdAt: string;
   updatedAt: string;
 }

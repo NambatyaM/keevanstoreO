@@ -31,6 +31,7 @@ export function mapCreatorFromDb(row: Record<string, unknown>): Creator {
     totalEarnings: Number(row.total_earnings ?? row.totalEarnings ?? 0),
     totalSales: Number(row.total_sales ?? row.totalSales ?? 0),
     totalViews: Number(row.total_views ?? row.totalViews ?? 0),
+    isAdmin: (row.is_admin ?? row.isAdmin ?? false) as boolean,
     createdAt: (row.created_at ?? row.createdAt ?? new Date().toISOString()) as string,
     updatedAt: (row.updated_at ?? row.updatedAt ?? new Date().toISOString()) as string,
   };

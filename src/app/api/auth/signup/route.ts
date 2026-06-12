@@ -73,6 +73,7 @@ export async function POST(request: NextRequest) {
         totalEarnings: 0,
         totalSales: 0,
         totalViews: 0,
+        isAdmin: false,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };

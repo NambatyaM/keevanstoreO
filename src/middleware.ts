@@ -49,7 +49,7 @@ export async function middleware(request: NextRequest) {
     return response;
   }
 
-  // Protect admin routes
+  // Protect admin routes — require authentication (admin check is done client-side in layout)
   if (pathname.startsWith("/admin")) {
     const { response, isAuthenticated } = await updateSession(request);
     if (!isAuthenticated) {
@@ -59,6 +59,7 @@ export async function middleware(request: NextRequest) {
         return response;
       }
       const redirectUrl = new URL("/login", request.url);
+      redirectUrl.searchParams.set("redirect", "/admin");
       return NextResponse.redirect(redirectUrl);
     }
     return response;
