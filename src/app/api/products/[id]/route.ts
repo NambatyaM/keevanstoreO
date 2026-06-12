@@ -9,6 +9,7 @@ import { MIN_PRODUCT_PRICE } from "@/lib/constants";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { mapProductFromDb, mapProductToDb } from "@/lib/db-mappers";
 import type { Product } from "@/types";
+import { ProductStatus } from "@/types";
 
 export async function GET(
   request: NextRequest,
@@ -76,6 +77,12 @@ export async function PUT(
         },
         { status: 400 }
       );
+    }
+
+    // Strip out protected fields that should never be client-modifiable
+    const protectedFields = ["salesCount", "views", "ticketsSold", "creatorId"];
+    for (const field of protectedFields) {
+      delete body[field];
     }
 
     if (isUsingMockData()) {
@@ -191,7 +198,7 @@ export async function DELETE(
       // Soft delete - return updated product with inactive status
       const updatedProduct: Product = {
         ...product,
-        status: "inactive",
+        status: ProductStatus.INACTIVE,
         updatedAt: new Date().toISOString(),
       };
 

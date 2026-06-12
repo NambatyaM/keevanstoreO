@@ -7,6 +7,7 @@ import {
   mockOrders,
   mockProducts,
   mockCreators,
+  getMockDownloadSessionByOrderId,
 } from "@/lib/mock-data";
 import { getTransactionStatus } from "@/lib/pesapal";
 import { createServiceRoleClient } from "@/lib/supabase/server";
@@ -73,10 +74,18 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      // Redirect to success page
+      // Find download session for digital products
+      const downloadSession = getMockDownloadSessionByOrderId(order.id);
+      const downloadTokenParam = downloadSession
+        ? `&downloadToken=${downloadSession.downloadToken}`
+        : order.downloadToken
+          ? `&downloadToken=${order.downloadToken}`
+          : "";
+
+      // Redirect to success page with download token
       return NextResponse.redirect(
         new URL(
-          `/payment/success?orderId=${order.id}&trackingId=${orderTrackingId}`,
+          `/payment/success?orderId=${order.id}&trackingId=${orderTrackingId}${downloadTokenParam}`,
           request.url
         )
       );
@@ -101,7 +110,7 @@ export async function GET(request: NextRequest) {
 
     const { data: orderRow } = await serviceClient
       .from("orders")
-      .select("id, status")
+      .select("id, status, download_token")
       .eq("pesapal_order_tracking_id", orderTrackingId)
       .single();
 
@@ -123,9 +132,27 @@ export async function GET(request: NextRequest) {
         console.log("Callback received for pending order, IPN should process:", orderId);
       }
 
+      // Find download session token for digital products
+      let downloadTokenParam = "";
+      if (orderRow.download_token) {
+        // Try to find a download session for this order
+        const { data: dlSession } = await serviceClient
+          .from("download_sessions")
+          .select("download_token")
+          .eq("order_id", orderId)
+          .limit(1)
+          .single();
+
+        if (dlSession) {
+          downloadTokenParam = `&downloadToken=${dlSession.download_token}`;
+        } else {
+          downloadTokenParam = `&downloadToken=${orderRow.download_token}`;
+        }
+      }
+
       return NextResponse.redirect(
         new URL(
-          `/payment/success?orderId=${orderId}&trackingId=${orderTrackingId}`,
+          `/payment/success?orderId=${orderId}&trackingId=${orderTrackingId}${downloadTokenParam}`,
           request.url
         )
       );

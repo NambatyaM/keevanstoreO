@@ -9,11 +9,21 @@ import {
   mockCreators,
 } from "@/lib/mock-data";
 import { createServiceRoleClient } from "@/lib/supabase/server";
-import { mapWithdrawalFromDb, mapCreatorFromDb } from "@/lib/db-mappers";
+import { mapWithdrawalFromDb } from "@/lib/db-mappers";
+import { verifyAdmin } from "@/lib/auth-helpers";
 import type { WithdrawalStatus } from "@/types";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    // Admin authentication check
+    const adminCheck = await verifyAdmin(request);
+    if (!adminCheck.isAdmin) {
+      return NextResponse.json(
+        { success: false, error: "Forbidden: admin access required" },
+        { status: 403 }
+      );
+    }
+
     if (isUsingMockData()) {
       // Get all withdrawals with creator info
       const withdrawalsWithCreator = mockWithdrawals.map((w) => {
@@ -87,6 +97,15 @@ export async function GET() {
 
 export async function PATCH(request: NextRequest) {
   try {
+    // Admin authentication check
+    const adminCheck = await verifyAdmin(request);
+    if (!adminCheck.isAdmin) {
+      return NextResponse.json(
+        { success: false, error: "Forbidden: admin access required" },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
     const { withdrawalId, action } = body;
 
@@ -156,68 +175,31 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    // Get withdrawal details
-    const { data: withdrawalRow, error: fetchError } = await serviceClient
-      .from("withdrawals")
-      .select("*")
-      .eq("id", withdrawalId)
-      .single();
-
-    if (fetchError || !withdrawalRow) {
-      return NextResponse.json(
-        { success: false, error: "Withdrawal not found" },
-        { status: 404 }
-      );
-    }
-
     if (action === "approve") {
-      // Deduct from creator balance first
-      const creatorId = withdrawalRow.creator_id as string;
-      const amount = Number(withdrawalRow.amount);
+      // Use the process_withdrawal_approval RPC function for atomicity
+      const { data: rpcResult, error: rpcError } = await serviceClient.rpc(
+        "process_withdrawal_approval",
+        { p_withdrawal_id: withdrawalId }
+      );
 
-      const { data: creatorRow } = await serviceClient
-        .from("creators")
-        .select("balance")
-        .eq("id", creatorId)
-        .single();
-
-      if (!creatorRow) {
+      if (rpcError) {
+        console.error("Error processing withdrawal approval via RPC:", rpcError);
         return NextResponse.json(
-          { success: false, error: "Creator not found" },
-          { status: 404 }
+          { success: false, error: rpcError.message || "Failed to approve withdrawal" },
+          { status: 500 }
         );
       }
 
-      if (Number(creatorRow.balance) < amount) {
-        return NextResponse.json(
-          { success: false, error: "Insufficient balance" },
-          { status: 400 }
-        );
-      }
-
-      // Deduct balance
-      await serviceClient
-        .from("creators")
-        .update({
-          balance: Number(creatorRow.balance) - amount,
-        })
-        .eq("id", creatorId);
-
-      // Update withdrawal status
-      const { data: updatedRow, error: updateError } = await serviceClient
+      // Fetch the updated withdrawal to return
+      const { data: updatedRow, error: fetchError } = await serviceClient
         .from("withdrawals")
-        .update({
-          status: "approved",
-          processed_at: new Date().toISOString(),
-        })
+        .select("*")
         .eq("id", withdrawalId)
-        .select()
         .single();
 
-      if (updateError || !updatedRow) {
-        console.error("Error updating withdrawal:", updateError);
+      if (fetchError || !updatedRow) {
         return NextResponse.json(
-          { success: false, error: "Failed to update withdrawal" },
+          { success: false, error: "Withdrawal approved but could not fetch updated record" },
           { status: 500 }
         );
       }

@@ -16,21 +16,41 @@ import {
   QrCode,
   Loader2,
   ExternalLink,
+  FileText,
+  Clock,
+  ShieldCheck,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { CurrencyDisplay, formatCurrency } from "@/components/shared/currency-display";
+import { CurrencyDisplay } from "@/components/shared/currency-display";
 import type { Order, Product, Creator } from "@/types";
+
+interface DownloadSessionInfo {
+  id: string;
+  productId: string;
+  productName: string;
+  productThumbnail: string | null;
+  fileName: string | null;
+  fileSize: number | null;
+  creatorName: string;
+  expiresAt: string;
+  downloadCount: number;
+  maxDownloads: number;
+  remainingDownloads: number;
+  createdAt: string;
+}
 
 function PaymentSuccessContent() {
   const searchParams = useSearchParams();
   const orderId = searchParams.get("orderId");
   const trackingId = searchParams.get("trackingId");
+  const downloadTokenParam = searchParams.get("downloadToken");
 
   const [order, setOrder] = useState<Order | null>(null);
   const [product, setProduct] = useState<Product | null>(null);
   const [creator, setCreator] = useState<Creator | null>(null);
+  const [downloadSession, setDownloadSession] = useState<DownloadSessionInfo | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -52,6 +72,15 @@ function PaymentSuccessContent() {
           if (prodData.success && prodData.data) {
             setProduct(prodData.data);
 
+            // If digital product, try to fetch download session info
+            if (prodData.data.type === "digital" && downloadTokenParam) {
+              const dlRes = await fetch(`/api/download/${downloadTokenParam}`);
+              const dlData = await dlRes.json();
+              if (dlData.success && dlData.data) {
+                setDownloadSession(dlData.data);
+              }
+            }
+
             // Fetch creator details
             const storeRes = await fetch(`/api/store?creator_id=${data.data.creatorId}`);
             const storeData = await storeRes.json();
@@ -68,7 +97,7 @@ function PaymentSuccessContent() {
     }
 
     fetchOrder();
-  }, [orderId]);
+  }, [orderId, downloadTokenParam]);
 
   if (loading) {
     return (
@@ -83,6 +112,13 @@ function PaymentSuccessContent() {
 
   const isDigital = product?.type === "digital";
   const isEvent = product?.type === "event";
+
+  // Determine download URL
+  const downloadUrl = downloadTokenParam
+    ? `/download/${downloadTokenParam}`
+    : order?.downloadToken
+      ? `/download/${order.downloadToken}`
+      : null;
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
@@ -156,22 +192,65 @@ function PaymentSuccessContent() {
           </Card>
         )}
 
-        {/* Digital Product - Download Info */}
+        {/* Digital Product - Download Section */}
         {isDigital && (
-          <Card className="border-blue-200 dark:border-blue-900 bg-blue-50/50 dark:bg-blue-950/20">
-            <CardContent className="p-6">
+          <Card className="border-emerald-200 dark:border-emerald-900 bg-emerald-50/50 dark:bg-emerald-950/20">
+            <CardContent className="p-6 space-y-4">
               <div className="flex items-start gap-3">
-                <Download className="h-5 w-5 text-blue-600 mt-0.5" />
-                <div>
-                  <p className="text-sm font-medium text-foreground">
-                    Download Your Product
+                <div className="w-10 h-10 rounded-lg bg-emerald-100 dark:bg-emerald-900/40 flex items-center justify-center flex-shrink-0">
+                  <FileText className="h-5 w-5 text-emerald-600" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-foreground">
+                    Your Digital Product is Ready!
                   </p>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Check your email ({order?.buyerEmail}) for the download link.
-                    The link will be valid for 24 hours. If you do not receive it within a few minutes, check your spam folder.
+                    {product?.fileName && (
+                      <span className="font-medium">{product.fileName}</span>
+                    )}
+                    {product?.fileSize && (
+                      <span className="ml-1">
+                        ({(product.fileSize / (1024 * 1024)).toFixed(1)} MB)
+                      </span>
+                    )}
                   </p>
                 </div>
               </div>
+
+              {downloadSession && (
+                <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                  <div className="flex items-center gap-1">
+                    <Clock className="h-3.5 w-3.5" />
+                    <span>Expires in 24h</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <ShieldCheck className="h-3.5 w-3.5" />
+                    <span>{downloadSession.remainingDownloads} of {downloadSession.maxDownloads} downloads left</span>
+                  </div>
+                </div>
+              )}
+
+              {downloadUrl && (
+                <Button
+                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+                  asChild
+                >
+                  <Link href={downloadUrl}>
+                    <Download className="h-4 w-4 mr-2" />
+                    Download Now
+                  </Link>
+                </Button>
+              )}
+
+              {!downloadUrl && (
+                <div className="flex items-start gap-3">
+                  <Mail className="h-4 w-4 text-emerald-600 mt-0.5 flex-shrink-0" />
+                  <p className="text-xs text-muted-foreground">
+                    Check your email ({order?.buyerEmail}) for the download link.
+                    The link will be valid for 24 hours.
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
         )}
@@ -245,7 +324,7 @@ function PaymentSuccessContent() {
         {/* Next Actions — Conversion Flow */}
         <div className="space-y-3">
           {/* Primary: Visit creator's store */}
-          {creator && (
+          {creator && !isDigital && (
             <Button
               className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
               asChild

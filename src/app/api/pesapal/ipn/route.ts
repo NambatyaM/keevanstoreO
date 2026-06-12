@@ -93,14 +93,6 @@ export async function POST(request: NextRequest) {
         .eq("id", orderRow.id);
 
       // Update creator balance and total_earnings (service role bypasses RLS)
-      await serviceClient
-        .from("creators")
-        .update({
-          balance: serviceClient.rpc ? undefined : undefined, // Use raw SQL approach below
-        })
-        .eq("id", creatorId);
-
-      // Direct balance update via service role (bypasses trigger protection)
       const { data: creatorData } = await serviceClient
         .from("creators")
         .select("balance, total_earnings, total_sales")
@@ -135,7 +127,7 @@ export async function POST(request: NextRequest) {
           .update(productUpdates)
           .eq("id", productId);
 
-        // For events: increment tickets_sold
+        // For events: increment tickets_sold and create ticket record
         if (productData.type === "event") {
           const { data: eventData } = await serviceClient
             .from("events")
@@ -151,17 +143,38 @@ export async function POST(request: NextRequest) {
               })
               .eq("product_id", productId);
           }
+
+          // Create a ticket record for this event purchase
+          await serviceClient.from("tickets").insert({
+            order_id: orderRow.id,
+            event_id: productId,
+            buyer_email: orderRow.buyer_email,
+            buyer_name: orderRow.buyer_name,
+            qr_code_data: `QR-${orderRow.id}`,
+          });
         }
       }
 
       // For digital products: generate download token if not already set
       if (orderRow.download_token === null && productData?.type === "digital") {
+        const downloadToken = `dl-${crypto.randomUUID()}`;
         await serviceClient
           .from("orders")
           .update({
-            download_token: `dl-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+            download_token: downloadToken,
           })
           .eq("id", orderRow.id);
+
+        // Create a download session for the digital product
+        await serviceClient
+          .from("download_sessions")
+          .insert({
+            order_id: orderRow.id,
+            product_id: productId,
+            download_token: crypto.randomUUID(),
+            expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+            max_downloads: 5,
+          });
       }
 
       console.log("Payment completed for order:", orderRow.id);

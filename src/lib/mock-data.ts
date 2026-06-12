@@ -9,6 +9,7 @@ import {
   type Donation,
   type Withdrawal,
   type Ticket,
+  type DownloadSession,
   type DashboardStats,
   type StorePublicData,
   ProductType,
@@ -545,6 +546,9 @@ const mockTickets: Ticket[] = [
   },
 ];
 
+// ── Mock Download Sessions ───────────────────────────────────
+const mockDownloadSessions: DownloadSession[] = [];
+
 // ── Generate Mock Page Views (last 30 days) ────────────────
 function generateMockPageViews(): PageView[] {
   const views: PageView[] = [];
@@ -649,6 +653,30 @@ export function getMockTickets(productId?: string): Ticket[] {
   return mockTickets;
 }
 
+export function getMockDownloadSession(token: string): DownloadSession | undefined {
+  return mockDownloadSessions.find(s => s.downloadToken === token);
+}
+
+export function getMockDownloadSessionByOrderId(orderId: string): DownloadSession | undefined {
+  return mockDownloadSessions.find(s => s.orderId === orderId);
+}
+
+export function createMockDownloadSession(orderId: string, productId: string): DownloadSession {
+  const session: DownloadSession = {
+    id: `ds-${crypto.randomUUID()}`,
+    orderId,
+    productId,
+    downloadToken: crypto.randomUUID(),
+    expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+    downloadCount: 0,
+    maxDownloads: 5,
+    lastDownloadedAt: null,
+    createdAt: new Date().toISOString(),
+  };
+  mockDownloadSessions.push(session);
+  return session;
+}
+
 export function getMockDashboardStats(creatorId: string): DashboardStats {
   const creator = getMockCreatorById(creatorId);
   const orders = getMockOrders(creatorId);
@@ -699,4 +727,4 @@ export function isUsingMockData(): boolean {
   return !url || url === "mock" || url === "";
 }
 
-export { mockCreators, mockProducts, mockOrders, mockDonations, mockWithdrawals, mockTickets, mockPageViews };
+export { mockCreators, mockProducts, mockOrders, mockDonations, mockWithdrawals, mockTickets, mockDownloadSessions, mockPageViews };

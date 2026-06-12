@@ -4,7 +4,7 @@
 // ============================================================
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
@@ -16,7 +16,6 @@ export default function AdminLayout({
 }) {
   const { user, isAuthenticated, isLoading, checkSession } = useAuth();
   const router = useRouter();
-  const [checking, setChecking] = useState(true);
 
   useEffect(() => {
     checkSession();
@@ -36,12 +35,15 @@ export default function AdminLayout({
       router.push("/dashboard");
       return;
     }
-
-    // User is admin, allow access
-    setChecking(false);
   }, [isLoading, isAuthenticated, user, router]);
 
-  if (isLoading || checking) {
+  // Derive the "still verifying" state from existing values
+  const isVerifiedAdmin = useMemo(
+    () => isAuthenticated && !!user?.isAdmin,
+    [isAuthenticated, user]
+  );
+
+  if (isLoading || !isVerifiedAdmin) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-3">
         <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />

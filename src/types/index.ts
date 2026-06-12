@@ -159,6 +159,18 @@ export interface Ticket {
   createdAt: string;
 }
 
+export interface DownloadSession {
+  id: string;
+  orderId: string;
+  productId: string;
+  downloadToken: string;
+  expiresAt: string;
+  downloadCount: number;
+  maxDownloads: number;
+  lastDownloadedAt: string | null;
+  createdAt: string;
+}
+
 // ── API Request Types ──────────────────────────────────────
 export interface SignupRequest {
   email: string;

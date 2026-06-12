@@ -111,7 +111,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
         if (products) {
           for (const product of products) {
-            const creatorUsername = (product.creators as { username: string } | null)?.username;
+            const creatorUsername = (product.creators as unknown as { username: string } | null)?.username;
             if (creatorUsername) {
               entries.push({
                 url: `${BASE_URL}/store/${creatorUsername}/${product.slug}`,

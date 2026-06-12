@@ -2,10 +2,20 @@
 // POST /api/uploads — Upload file to R2 or local
 // ============================================================
 import { NextRequest, NextResponse } from "next/server";
-import { uploadFile, isR2Ready } from "@/lib/r2";
+import { uploadFile } from "@/lib/r2";
+import { verifyAuth } from "@/lib/auth-helpers";
 
 export async function POST(request: NextRequest) {
   try {
+    // Authentication check — user must be logged in
+    const authResult = await verifyAuth(request);
+    if (!authResult.isAuthenticated) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized: authentication required" },
+        { status: 401 }
+      );
+    }
+
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
     const bucket = (formData.get("bucket") as string) || "keevan-store";

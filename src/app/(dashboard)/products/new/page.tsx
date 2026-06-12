@@ -25,7 +25,7 @@ import { CurrencyDisplay, formatCurrency } from "@/components/shared/currency-di
 import { useAuth } from "@/hooks/use-auth";
 import { MIN_PRODUCT_PRICE, PRODUCT_TYPE_LABELS } from "@/lib/constants";
 import { toast } from "sonner";
-import type { ProductType } from "@/types";
+import { ProductType } from "@/types";
 
 export default function NewProductPage() {
   const { user } = useAuth();
@@ -34,7 +34,7 @@ export default function NewProductPage() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [price, setPrice] = useState("");
-  const [productType, setProductType] = useState<ProductType>("digital");
+  const [productType, setProductType] = useState<ProductType>(ProductType.DIGITAL);
   const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
   const [fileUrl, setFileUrl] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);

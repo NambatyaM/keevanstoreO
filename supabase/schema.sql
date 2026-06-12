@@ -511,3 +511,30 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- creator-1: sarah@keevan.store / sarah-creates
 -- creator-2: james@keevan.store / james-beats
 -- creator-3: nina@keevan.store / nina-events
+
+-- ── Download Sessions Table ─────────────────────────────────
+CREATE TABLE IF NOT EXISTS download_sessions (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  order_id UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+  product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  download_token TEXT NOT NULL UNIQUE,
+  expires_at TIMESTAMPTZ NOT NULL,
+  download_count INTEGER DEFAULT 0 NOT NULL,
+  max_downloads INTEGER DEFAULT 5 NOT NULL,
+  last_downloaded_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT now() NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_download_sessions_token ON download_sessions(download_token);
+CREATE INDEX IF NOT EXISTS idx_download_sessions_order_id ON download_sessions(order_id);
+CREATE INDEX IF NOT EXISTS idx_download_sessions_expires_at ON download_sessions(expires_at);
+
+-- RLS: Anyone with a valid token can read their download session
+ALTER TABLE download_sessions ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Download sessions viewable by token holders"
+  ON download_sessions FOR SELECT
+  USING (true);
+
+-- Only system can insert/update download sessions
+-- No insert policy for creators

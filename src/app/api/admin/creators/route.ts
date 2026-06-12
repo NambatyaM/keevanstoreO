@@ -10,9 +10,19 @@ import {
 } from "@/lib/mock-data";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { mapCreatorFromDb } from "@/lib/db-mappers";
+import { verifyAdmin } from "@/lib/auth-helpers";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    // Admin authentication check
+    const adminCheck = await verifyAdmin(request);
+    if (!adminCheck.isAdmin) {
+      return NextResponse.json(
+        { success: false, error: "Forbidden: admin access required" },
+        { status: 403 }
+      );
+    }
+
     if (isUsingMockData()) {
       return NextResponse.json({
         success: true,
@@ -62,6 +72,15 @@ export async function GET() {
 
 export async function PATCH(request: NextRequest) {
   try {
+    // Admin authentication check
+    const adminCheck = await verifyAdmin(request);
+    if (!adminCheck.isAdmin) {
+      return NextResponse.json(
+        { success: false, error: "Forbidden: admin access required" },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
     const { creatorId, action } = body;
 

@@ -71,7 +71,7 @@ export default function ProductsPage() {
       const data = await res.json();
       if (data.success) {
         setProducts(
-          products.map((p) => (p.id === id ? { ...p, status } : p))
+          products.map((p) => (p.id === id ? { ...p, status: status as import("@/types").ProductStatus } : p))
         );
         toast.success(
           status === "active"

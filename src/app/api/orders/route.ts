@@ -156,8 +156,8 @@ export async function POST(request: NextRequest) {
       const creatorEarning = amount - platformFee;
 
       // Create order
-      const orderId = `order-${Date.now()}`;
-      const trackingId = `mock-tracking-${Date.now()}`;
+      const orderId = crypto.randomUUID();
+      const trackingId = `mock-tracking-${crypto.randomUUID()}`;
 
       const newOrder: Order = {
         id: orderId,
@@ -173,7 +173,7 @@ export async function POST(request: NextRequest) {
         paymentMethod: paymentMethod as PaymentMethod,
         pesapalOrderTrackingId: trackingId,
         pesapalTransactionId: null,
-        downloadToken: product.type === "digital" ? `dl-token-${Date.now()}` : null,
+        downloadToken: product.type === "digital" ? `dl-${crypto.randomUUID()}` : null,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
@@ -269,7 +269,7 @@ export async function POST(request: NextRequest) {
     const amount = product.price;
     const platformFee = Math.round((amount * PLATFORM_FEE_PERCENT) / 100);
     const creatorEarning = amount - platformFee;
-    const orderId = `order-${Date.now()}`;
+    const orderId = crypto.randomUUID();
 
     // Register IPN with Pesapal
     const ipnUrl = process.env.PESAPAL_IPN_URL || `${process.env.NEXT_PUBLIC_APP_URL}/api/pesapal/ipn`;
@@ -298,7 +298,7 @@ export async function POST(request: NextRequest) {
         currency: product.currency,
         status: "pending",
         payment_method: paymentMethod,
-        download_token: product.type === "digital" ? `dl-token-${Date.now()}` : null,
+        download_token: product.type === "digital" ? `dl-${crypto.randomUUID()}` : null,
       })
       .select()
       .single();

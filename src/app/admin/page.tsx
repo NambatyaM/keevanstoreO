@@ -124,7 +124,7 @@ export default function AdminPage() {
               w.id === withdrawalId
                 ? {
                     ...w,
-                    status: action === "approve" ? "approved" : "rejected",
+                    status: (action === "approve" ? "approved" : "rejected") as import("@/types").WithdrawalStatus,
                     processedAt: new Date().toISOString(),
                   }
                 : w

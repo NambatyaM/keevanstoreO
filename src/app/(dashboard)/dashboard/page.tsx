@@ -29,7 +29,7 @@ import type { DashboardStats, Order, Product } from "@/types";
 export default function DashboardPage() {
   const { user } = useAuth();
   const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [products, setProducts] = useState<Product[]>(0);
+  const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -126,7 +126,7 @@ export default function DashboardPage() {
 
   // Determine the next suggested action based on creator's state
   const getNextAction = () => {
-    if (products === 0) {
+    if (products.length === 0) {
       return {
         title: "Add Your First Product",
         description: "Your store is set up! Now add a product so customers can start buying.",

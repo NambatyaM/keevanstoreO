@@ -14,6 +14,7 @@ import {
 } from "@/lib/mock-data";
 import { createServerSupabaseClient, createServiceRoleClient } from "@/lib/supabase/server";
 import { mapCreatorFromDb } from "@/lib/db-mappers";
+import { verifyAuth } from "@/lib/auth-helpers";
 
 function generateMockAnalytics(creatorId: string, range: string) {
   const now = new Date();
@@ -41,7 +42,7 @@ function generateMockAnalytics(creatorId: string, range: string) {
   const products = getMockProducts(creatorId);
 
   // Generate sales by day
-  const salesByDay = [];
+  const salesByDay: { date: string; sales: number; revenue: number; views: number }[] = [];
   for (let i = days - 1; i >= 0; i--) {
     const date = new Date(now);
     date.setDate(date.getDate() - i);
@@ -107,6 +108,22 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         { success: false, error: "creator_id is required" },
         { status: 400 }
+      );
+    }
+
+    // Authentication check — only the creator themselves can view their analytics
+    const authResult = await verifyAuth(request);
+    if (!authResult.isAuthenticated) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized: authentication required" },
+        { status: 401 }
+      );
+    }
+
+    if (authResult.userId !== creatorId) {
+      return NextResponse.json(
+        { success: false, error: "Forbidden: you can only view your own analytics" },
+        { status: 403 }
       );
     }
 

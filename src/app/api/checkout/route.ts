@@ -9,6 +9,7 @@ import {
   mockOrders,
   mockProducts,
   mockCreators,
+  createMockDownloadSession,
 } from "@/lib/mock-data";
 import { PLATFORM_FEE_PERCENT } from "@/lib/constants";
 import { submitOrder, registerIPN } from "@/lib/pesapal";
@@ -66,8 +67,8 @@ export async function POST(request: NextRequest) {
       const creatorEarning = amount - platformFee;
 
       // Create pending order
-      const orderId = `order-${Date.now()}`;
-      const trackingId = `checkout-tracking-${Date.now()}`;
+      const orderId = crypto.randomUUID();
+      const trackingId = `checkout-tracking-${crypto.randomUUID()}`;
 
       const newOrder: Order = {
         id: orderId,
@@ -83,7 +84,7 @@ export async function POST(request: NextRequest) {
         paymentMethod: paymentMethod as PaymentMethod,
         pesapalOrderTrackingId: trackingId,
         pesapalTransactionId: null,
-        downloadToken: product.type === "digital" ? `dl-token-${Date.now()}` : null,
+        downloadToken: product.type === "digital" ? `dl-${crypto.randomUUID()}` : null,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
@@ -119,6 +120,11 @@ export async function POST(request: NextRequest) {
             mockCreators[creatorIndex].balance += creatorEarning;
             mockCreators[creatorIndex].totalEarnings += creatorEarning;
             mockCreators[creatorIndex].totalSales += 1;
+          }
+
+          // Create download session for digital products
+          if (product.type === "digital") {
+            createMockDownloadSession(orderId, productId);
           }
         }
       }, 2000);
@@ -193,7 +199,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const orderId = `order-${Date.now()}`;
+    const orderId = crypto.randomUUID();
 
     // Register IPN with Pesapal
     const ipnUrl = process.env.PESAPAL_IPN_URL || `${process.env.NEXT_PUBLIC_APP_URL}/api/pesapal/ipn`;
@@ -213,7 +219,7 @@ export async function POST(request: NextRequest) {
         currency: product.currency,
         status: "pending",
         payment_method: paymentMethod,
-        download_token: product.type === "digital" ? `dl-token-${Date.now()}` : null,
+        download_token: product.type === "digital" ? `dl-${crypto.randomUUID()}` : null,
       })
       .select()
       .single();

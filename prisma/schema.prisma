@@ -57,6 +57,7 @@ model Product {
   updatedAt   DateTime @updatedAt
 
   @@unique([creatorId, slug])
+  downloadSessions DownloadSession[]
 }
 
 model Order {
@@ -77,6 +78,8 @@ model Order {
   downloadToken          String?
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
+
+  downloadSessions       DownloadSession[]
 }
 
 model PageView {
@@ -119,4 +122,19 @@ model Ticket {
   checkedIn    Boolean  @default(false)
   checkedInAt  DateTime?
   createdAt    DateTime @default(now())
+}
+
+model DownloadSession {
+  id              String    @id @default(cuid())
+  orderId         String
+  productId       String
+  downloadToken   String    @unique
+  expiresAt       DateTime
+  downloadCount   Int       @default(0)
+  maxDownloads    Int       @default(5)
+  lastDownloadedAt DateTime?
+  createdAt       DateTime  @default(now())
+
+  order           Order     @relation(fields: [orderId], references: [id])
+  product         Product   @relation(fields: [productId], references: [id])
 }
