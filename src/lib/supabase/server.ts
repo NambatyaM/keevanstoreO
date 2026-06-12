@@ -2,6 +2,7 @@
 // Supabase Server Client (with cookie handling)
 // ============================================================
 import { createServerClient } from "@supabase/ssr";
+import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -39,6 +40,25 @@ export async function createServerSupabaseClient() {
       },
     },
   });
+}
+
+/**
+ * Creates a Supabase client using the service role key.
+ * This bypasses Row Level Security (RLS) and should only be used for:
+ * - Creating creator profiles during signup (before the user has authenticated RLS access)
+ * - Admin operations
+ * - Payment webhook processing (IPN handler)
+ * - Any server-side operation that needs to bypass RLS
+ */
+export function createServiceRoleClient() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+
+  if (!url || !key) {
+    return null;
+  }
+
+  return createClient(url, key);
 }
 
 export async function getAuthenticatedUser() {

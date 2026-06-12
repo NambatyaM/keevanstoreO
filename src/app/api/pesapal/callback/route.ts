@@ -7,18 +7,15 @@ import {
   mockOrders,
   mockProducts,
   mockCreators,
-  getMockOrderById,
 } from "@/lib/mock-data";
 import { getTransactionStatus } from "@/lib/pesapal";
+import { createServiceRoleClient } from "@/lib/supabase/server";
 import type { OrderStatus } from "@/types";
 
 export async function GET(request: NextRequest) {
   try {
     const orderTrackingId = request.nextUrl.searchParams.get(
       "OrderTrackingId"
-    );
-    const orderNotificationType = request.nextUrl.searchParams.get(
-      "OrderNotificationType"
     );
 
     if (!orderTrackingId) {
@@ -94,39 +91,59 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Find order by tracking ID
-    const order = mockOrders.find(
-      (o) => o.pesapalOrderTrackingId === orderTrackingId
-    );
-
-    if (
-      transactionStatus.payment_status === "COMPLETED" &&
-      order
-    ) {
-      // Update order status
-      const orderIndex = mockOrders.findIndex(
-        (o) => o.pesapalOrderTrackingId === orderTrackingId
+    // Find order by tracking ID from Supabase
+    const serviceClient = createServiceRoleClient();
+    if (!serviceClient) {
+      return NextResponse.redirect(
+        new URL("/payment/cancel?reason=service_unavailable", request.url)
       );
-      if (orderIndex >= 0) {
-        mockOrders[orderIndex] = {
-          ...mockOrders[orderIndex],
-          status: "completed" as OrderStatus,
-          pesapalTransactionId: transactionStatus.confirmation_code,
-          updatedAt: new Date().toISOString(),
-        };
+    }
+
+    const { data: orderRow } = await serviceClient
+      .from("orders")
+      .select("id, status")
+      .eq("pesapal_order_tracking_id", orderTrackingId)
+      .single();
+
+    if (!orderRow) {
+      return NextResponse.redirect(
+        new URL("/payment/cancel?reason=order_not_found", request.url)
+      );
+    }
+
+    const orderId = orderRow.id as string;
+
+    if (transactionStatus.payment_status === "COMPLETED") {
+      // The IPN handler should process the payment, but as a fallback
+      // we also process it here if the order is still pending
+      if (orderRow.status === "pending") {
+        // IPN will handle the full processing, but for the callback
+        // we just redirect the user. The IPN may arrive before or after.
+        // For safety, we don't duplicate the processing here.
+        console.log("Callback received for pending order, IPN should process:", orderId);
       }
 
       return NextResponse.redirect(
         new URL(
-          `/payment/success?orderId=${order.id}&trackingId=${orderTrackingId}`,
+          `/payment/success?orderId=${orderId}&trackingId=${orderTrackingId}`,
           request.url
         )
       );
     }
 
-    // Payment failed or not completed
+    if (transactionStatus.payment_status === "PENDING") {
+      return NextResponse.redirect(
+        new URL(
+          `/payment/success?orderId=${orderId}&status=pending`,
+          request.url
+        )
+      );
+    }
+
+    // Payment FAILED or INVALID
+    const reason = transactionStatus.payment_status || "payment_failed";
     return NextResponse.redirect(
-      new URL("/payment/cancel?reason=payment_failed", request.url)
+      new URL(`/payment/cancel?reason=${reason}`, request.url)
     );
   } catch {
     return NextResponse.redirect(

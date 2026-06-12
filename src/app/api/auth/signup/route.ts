@@ -5,6 +5,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isUsingMockData, isMockUsernameAvailable, mockCreators } from "@/lib/mock-data";
 import { USERNAME_RULES } from "@/lib/constants";
+import { createServerSupabaseClient, createServiceRoleClient } from "@/lib/supabase/server";
+import { mapCreatorFromDb } from "@/lib/db-mappers";
 import type { Creator } from "@/types";
 
 export async function POST(request: NextRequest) {
@@ -81,11 +83,92 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Real Supabase signup would go here
-    return NextResponse.json(
-      { success: false, error: "Supabase not configured" },
-      { status: 500 }
-    );
+    // Real Supabase signup
+    const supabase = await createServerSupabaseClient();
+    if (!supabase) {
+      return NextResponse.json(
+        { success: false, error: "Supabase not configured" },
+        { status: 500 }
+      );
+    }
+
+    // Check username availability against real DB
+    const { data: existingUser } = await supabase
+      .from("creators")
+      .select("id")
+      .eq("username", username)
+      .maybeSingle();
+
+    if (existingUser) {
+      return NextResponse.json(
+        { success: false, error: "Username is already taken" },
+        { status: 409 }
+      );
+    }
+
+    // Sign up the user in Supabase Auth
+    const { data: authData, error: authError } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          username,
+          display_name: displayName,
+        },
+      },
+    });
+
+    if (authError || !authData.user) {
+      return NextResponse.json(
+        { success: false, error: authError?.message || "Signup failed" },
+        { status: 400 }
+      );
+    }
+
+    // Insert creator profile using service role client (bypasses RLS)
+    const serviceClient = createServiceRoleClient();
+    if (!serviceClient) {
+      return NextResponse.json(
+        { success: false, error: "Service client not available" },
+        { status: 500 }
+      );
+    }
+
+    const { data: creatorRow, error: insertError } = await serviceClient
+      .from("creators")
+      .insert({
+        id: authData.user.id,
+        email,
+        username,
+        display_name: displayName,
+      })
+      .select()
+      .single();
+
+    if (insertError || !creatorRow) {
+      console.error("Failed to create creator profile:", insertError);
+      return NextResponse.json(
+        { success: false, error: "Failed to create creator profile" },
+        { status: 500 }
+      );
+    }
+
+    const creator = mapCreatorFromDb(creatorRow);
+
+    const response = NextResponse.json({
+      success: true,
+      data: creator,
+    });
+
+    // Set auth cookie for middleware compatibility
+    response.cookies.set("keevan-auth", JSON.stringify({ id: authData.user.id, email: authData.user.email }), {
+      httpOnly: false,
+      path: "/",
+      maxAge: 60 * 60 * 24 * 7,
+      sameSite: "lax",
+    });
+
+    return response;
   } catch {
     return NextResponse.json(
       { success: false, error: "Internal server error" },
@@ -119,5 +202,20 @@ export async function GET(request: NextRequest) {
   }
 
   // Real check against Supabase
+  const supabase = await createServerSupabaseClient();
+  if (!supabase) {
+    return NextResponse.json({ available: true });
+  }
+
+  const { data } = await supabase
+    .from("creators")
+    .select("id")
+    .eq("username", username)
+    .maybeSingle();
+
+  if (data) {
+    return NextResponse.json({ available: false });
+  }
+
   return NextResponse.json({ available: true });
 }

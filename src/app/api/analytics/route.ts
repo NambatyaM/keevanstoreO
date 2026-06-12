@@ -12,6 +12,8 @@ import {
   mockOrders,
   mockProducts,
 } from "@/lib/mock-data";
+import { createServerSupabaseClient, createServiceRoleClient } from "@/lib/supabase/server";
+import { mapCreatorFromDb } from "@/lib/db-mappers";
 
 function generateMockAnalytics(creatorId: string, range: string) {
   const now = new Date();
@@ -86,6 +88,16 @@ function generateMockAnalytics(creatorId: string, range: string) {
   };
 }
 
+function getDaysFromRange(range: string): number {
+  switch (range) {
+    case "7d": return 7;
+    case "30d": return 30;
+    case "90d": return 90;
+    case "all": return 365;
+    default: return 30;
+  }
+}
+
 export async function GET(request: NextRequest) {
   try {
     const creatorId = request.nextUrl.searchParams.get("creator_id");
@@ -123,19 +135,175 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Real Supabase query
+    // Real Supabase analytics query
+    const serviceClient = createServiceRoleClient();
+    if (!serviceClient) {
+      return NextResponse.json({
+        success: true,
+        data: {
+          totalRevenue: 0,
+          totalSales: 0,
+          totalViews: 0,
+          conversionRate: 0,
+          salesByDay: [],
+          topProducts: [],
+          revenueChange: 0,
+          salesChange: 0,
+          viewsChange: 0,
+        },
+      });
+    }
+
+    const days = getDaysFromRange(range);
+    const sinceDate = new Date();
+    sinceDate.setDate(sinceDate.getDate() - days);
+    const sinceDateStr = sinceDate.toISOString();
+
+    // Get creator info
+    const { data: creatorRow } = await serviceClient
+      .from("creators")
+      .select("*")
+      .eq("id", creatorId)
+      .single();
+
+    if (!creatorRow) {
+      return NextResponse.json(
+        { success: false, error: "Creator not found" },
+        { status: 404 }
+      );
+    }
+
+    const creator = mapCreatorFromDb(creatorRow);
+
+    // Get completed orders in date range
+    const { data: orderRows } = await serviceClient
+      .from("orders")
+      .select("amount, creator_earning, created_at, product_id, status")
+      .eq("creator_id", creatorId)
+      .eq("status", "completed")
+      .gte("created_at", sinceDateStr);
+
+    const orders = orderRows || [];
+
+    // Get page views in date range
+    const { data: viewRows } = await serviceClient
+      .from("page_views")
+      .select("created_at, view_type")
+      .eq("creator_id", creatorId)
+      .gte("created_at", sinceDateStr);
+
+    const views = viewRows || [];
+
+    // Calculate totals
+    const totalRevenue = orders.reduce((sum, o) => sum + Number(o.creator_earning), 0);
+    const totalSales = orders.length;
+    const totalViews = views.length;
+    const conversionRate = totalViews > 0 ? +((totalSales / totalViews) * 100).toFixed(1) : 0;
+
+    // Build salesByDay array
+    const salesByDayMap = new Map<string, { sales: number; revenue: number; views: number }>();
+
+    // Initialize all days with zeros
+    for (let i = days - 1; i >= 0; i--) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      const dateStr = date.toISOString().split("T")[0];
+      salesByDayMap.set(dateStr, { sales: 0, revenue: 0, views: 0 });
+    }
+
+    // Aggregate orders by day
+    for (const order of orders) {
+      const dateStr = (order.created_at as string).split("T")[0];
+      const existing = salesByDayMap.get(dateStr);
+      if (existing) {
+        existing.sales += 1;
+        existing.revenue += Number(order.creator_earning);
+      }
+    }
+
+    // Aggregate views by day
+    for (const view of views) {
+      const dateStr = (view.created_at as string).split("T")[0];
+      const existing = salesByDayMap.get(dateStr);
+      if (existing) {
+        existing.views += 1;
+      }
+    }
+
+    const salesByDay = Array.from(salesByDayMap.entries()).map(([date, data]) => ({
+      date,
+      ...data,
+    }));
+
+    // Get top products
+    const { data: productRows } = await serviceClient
+      .from("products")
+      .select("id, title, price, sales_count, views, status")
+      .eq("creator_id", creatorId);
+
+    const products = productRows || [];
+
+    // Calculate revenue per product from orders
+    const productRevenueMap = new Map<string, number>();
+    for (const order of orders) {
+      const pid = order.product_id as string;
+      productRevenueMap.set(pid, (productRevenueMap.get(pid) || 0) + Number(order.creator_earning));
+    }
+
+    const topProducts = products
+      .filter((p) => p.status === "active")
+      .map((p) => ({
+        name: p.title,
+        sales: Number(p.sales_count),
+        revenue: productRevenueMap.get(p.id) || Number(p.sales_count) * Number(p.price),
+        views: Number(p.views),
+        conversionRate: Number(p.views) > 0 ? +((Number(p.sales_count) / Number(p.views)) * 100).toFixed(1) : 0,
+      }))
+      .sort((a, b) => b.revenue - a.revenue);
+
+    // Calculate period-over-period changes
+    // Compare current period with the previous period of same length
+    const prevSinceDate = new Date(sinceDate);
+    prevSinceDate.setDate(prevSinceDate.getDate() - days);
+    const prevSinceDateStr = prevSinceDate.toISOString();
+
+    const { data: prevOrderRows } = await serviceClient
+      .from("orders")
+      .select("creator_earning")
+      .eq("creator_id", creatorId)
+      .eq("status", "completed")
+      .gte("created_at", prevSinceDateStr)
+      .lt("created_at", sinceDateStr);
+
+    const prevOrders = prevOrderRows || [];
+    const prevRevenue = prevOrders.reduce((sum, o) => sum + Number(o.creator_earning), 0);
+    const prevSales = prevOrders.length;
+
+    const { data: prevViewRows } = await serviceClient
+      .from("page_views")
+      .select("id")
+      .eq("creator_id", creatorId)
+      .gte("created_at", prevSinceDateStr)
+      .lt("created_at", sinceDateStr);
+
+    const prevViews = prevViewRows?.length || 0;
+
+    const revenueChange = prevRevenue > 0 ? +(((totalRevenue - prevRevenue) / prevRevenue) * 100).toFixed(1) : 0;
+    const salesChange = prevSales > 0 ? +(((totalSales - prevSales) / prevSales) * 100).toFixed(1) : 0;
+    const viewsChange = prevViews > 0 ? +(((totalViews - prevViews) / prevViews) * 100).toFixed(1) : 0;
+
     return NextResponse.json({
       success: true,
       data: {
-        totalRevenue: 0,
-        totalSales: 0,
-        totalViews: 0,
-        conversionRate: 0,
-        salesByDay: [],
-        topProducts: [],
-        revenueChange: 0,
-        salesChange: 0,
-        viewsChange: 0,
+        totalRevenue,
+        totalSales,
+        totalViews,
+        conversionRate,
+        salesByDay,
+        topProducts,
+        revenueChange,
+        salesChange,
+        viewsChange,
       },
     });
   } catch {

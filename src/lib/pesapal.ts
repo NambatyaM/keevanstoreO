@@ -184,3 +184,33 @@ export async function getTransactionStatus(
 export function isPesapalReady(): boolean {
   return !!isPesapalConfigured;
 }
+
+export function isPesapalLive(): boolean {
+  return process.env.PESAPAL_MODE === "live";
+}
+
+export async function registerIPN(ipnUrl: string): Promise<string | null> {
+  const token = await authenticate();
+  if (!token) return null;
+
+  try {
+    const response = await fetch(`${PESAPAL_API_URL}/URLSetup/RegisterIPN`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        url: ipnUrl,
+        ipn_notification_type: "POST",
+      }),
+    });
+
+    const data = await response.json();
+    return data.ipn_id || data.IPNId || null;
+  } catch {
+    console.error("Failed to register IPN with Pesapal");
+    return null;
+  }
+}

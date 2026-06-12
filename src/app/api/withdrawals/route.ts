@@ -11,6 +11,8 @@ import {
   mockCreators,
 } from "@/lib/mock-data";
 import { MIN_WITHDRAWAL_AMOUNT } from "@/lib/constants";
+import { createServerSupabaseClient, createServiceRoleClient } from "@/lib/supabase/server";
+import { mapWithdrawalFromDb, mapWithdrawalToDb } from "@/lib/db-mappers";
 import type { Withdrawal, WithdrawalStatus } from "@/types";
 
 export async function GET(request: NextRequest) {
@@ -37,10 +39,49 @@ export async function GET(request: NextRequest) {
       });
     }
 
+    // Real Supabase query
+    const supabase = await createServerSupabaseClient();
+    if (!supabase) {
+      return NextResponse.json({
+        success: true,
+        data: [],
+        total: 0,
+      });
+    }
+
+    // Verify authenticated user
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user || user.id !== creatorId) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized" },
+        { status: 403 }
+      );
+    }
+
+    const { data: withdrawalRows, error } = await supabase
+      .from("withdrawals")
+      .select("*")
+      .eq("creator_id", creatorId)
+      .order("requested_at", { ascending: false });
+
+    if (error) {
+      console.error("Error fetching withdrawals:", error);
+      return NextResponse.json({
+        success: true,
+        data: [],
+        total: 0,
+      });
+    }
+
+    const withdrawals = (withdrawalRows || []).map((row) => mapWithdrawalFromDb(row));
+
     return NextResponse.json({
       success: true,
-      data: [],
-      total: 0,
+      data: withdrawals,
+      total: withdrawals.length,
     });
   } catch {
     return NextResponse.json(
@@ -116,10 +157,76 @@ export async function POST(request: NextRequest) {
     }
 
     // Real Supabase flow
-    return NextResponse.json(
-      { success: false, error: "Supabase not configured" },
-      { status: 500 }
-    );
+    const supabase = await createServerSupabaseClient();
+    if (!supabase) {
+      return NextResponse.json(
+        { success: false, error: "Supabase not configured" },
+        { status: 500 }
+      );
+    }
+
+    // Verify authenticated user
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user || user.id !== creatorId) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized" },
+        { status: 403 }
+      );
+    }
+
+    // Check creator balance
+    const { data: creatorRow } = await supabase
+      .from("creators")
+      .select("balance")
+      .eq("id", creatorId)
+      .single();
+
+    if (!creatorRow) {
+      return NextResponse.json(
+        { success: false, error: "Creator not found" },
+        { status: 404 }
+      );
+    }
+
+    if (Number(creatorRow.balance) < amount) {
+      return NextResponse.json(
+        { success: false, error: "Insufficient balance" },
+        { status: 400 }
+      );
+    }
+
+    // Create withdrawal using the RLS-enabled client (creator is authenticated)
+    const withdrawalData = mapWithdrawalToDb({
+      creatorId,
+      amount,
+      phoneNumber,
+      provider,
+    });
+    withdrawalData.status = "pending";
+
+    const { data: withdrawalRow, error: insertError } = await supabase
+      .from("withdrawals")
+      .insert(withdrawalData)
+      .select()
+      .single();
+
+    if (insertError || !withdrawalRow) {
+      console.error("Error creating withdrawal:", insertError);
+      return NextResponse.json(
+        { success: false, error: "Failed to create withdrawal request" },
+        { status: 500 }
+      );
+    }
+
+    const withdrawal = mapWithdrawalFromDb(withdrawalRow);
+
+    return NextResponse.json({
+      success: true,
+      data: withdrawal,
+    });
   } catch {
     return NextResponse.json(
       { success: false, error: "Internal server error" },

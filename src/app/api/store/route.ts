@@ -10,6 +10,8 @@ import {
   getMockCreatorById,
   mockCreators,
 } from "@/lib/mock-data";
+import { createServerSupabaseClient, createServiceRoleClient } from "@/lib/supabase/server";
+import { mapCreatorFromDb, mapProductFromDb, mapCreatorToDb } from "@/lib/db-mappers";
 import type { Creator, Donation } from "@/types";
 
 export async function GET(request: NextRequest) {
@@ -46,9 +48,73 @@ export async function GET(request: NextRequest) {
       );
     }
 
+    // Real Supabase queries
+    const supabase = await createServerSupabaseClient();
+    if (!supabase) {
+      return NextResponse.json(
+        { success: false, error: "Store not found" },
+        { status: 404 }
+      );
+    }
+
+    if (username) {
+      // Find creator by username
+      const { data: creatorRow, error: creatorError } = await supabase
+        .from("creators")
+        .select("*")
+        .eq("username", username)
+        .eq("is_active", true)
+        .single();
+
+      if (creatorError || !creatorRow) {
+        return NextResponse.json(
+          { success: false, error: "Store not found" },
+          { status: 404 }
+        );
+      }
+
+      const creator = mapCreatorFromDb(creatorRow);
+
+      // Get active products for this creator
+      const { data: productRows, error: productsError } = await supabase
+        .from("products")
+        .select("*")
+        .eq("creator_id", creator.id)
+        .eq("status", "active");
+
+      if (productsError) {
+        console.error("Error fetching products:", productsError);
+      }
+
+      const products = (productRows || []).map((row) => mapProductFromDb(row));
+
+      return NextResponse.json({
+        success: true,
+        data: { creator, products },
+      });
+    }
+
+    if (creatorId) {
+      const { data: creatorRow, error: creatorError } = await supabase
+        .from("creators")
+        .select("*")
+        .eq("id", creatorId)
+        .single();
+
+      if (creatorError || !creatorRow) {
+        return NextResponse.json(
+          { success: false, error: "Store not found" },
+          { status: 404 }
+        );
+      }
+
+      const creator = mapCreatorFromDb(creatorRow);
+      return NextResponse.json({ success: true, data: creator });
+    }
+
     return NextResponse.json(
-      { success: false, error: "Store not found" },
-      { status: 404 }
+      { success: false, error: "Username or creator_id required" },
+      { status: 400 }
     );
   } catch {
     return NextResponse.json(
@@ -88,10 +154,47 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ success: true, data: updatedCreator });
     }
 
-    return NextResponse.json(
-      { success: false, error: "Supabase not configured" },
-      { status: 500 }
-    );
+    // Real Supabase update
+    const supabase = await createServerSupabaseClient();
+    if (!supabase) {
+      return NextResponse.json(
+        { success: false, error: "Supabase not configured" },
+        { status: 500 }
+      );
+    }
+
+    // Verify authenticated user matches creatorId
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user || user.id !== creatorId) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized" },
+        { status: 403 }
+      );
+    }
+
+    // Map camelCase updates to snake_case for DB
+    const dbUpdates = mapCreatorToDb(updates);
+
+    const { data: updatedRow, error: updateError } = await supabase
+      .from("creators")
+      .update(dbUpdates)
+      .eq("id", creatorId)
+      .select()
+      .single();
+
+    if (updateError || !updatedRow) {
+      console.error("Error updating creator:", updateError);
+      return NextResponse.json(
+        { success: false, error: "Failed to update store" },
+        { status: 500 }
+      );
+    }
+
+    const updatedCreator = mapCreatorFromDb(updatedRow);
+    return NextResponse.json({ success: true, data: updatedCreator });
   } catch {
     return NextResponse.json(
       { success: false, error: "Internal server error" },
@@ -129,6 +232,12 @@ export async function POST(request: NextRequest) {
 
         return NextResponse.json({ success: true, data: donation });
       }
+
+      // Real Supabase donation insert handled via /api/donations
+      return NextResponse.json(
+        { success: false, error: "Use /api/donations for real donations" },
+        { status: 400 }
+      );
     }
 
     return NextResponse.json(

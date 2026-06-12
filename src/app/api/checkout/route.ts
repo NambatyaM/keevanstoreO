@@ -10,8 +10,10 @@ import {
   mockProducts,
   mockCreators,
 } from "@/lib/mock-data";
-import { PLATFORM_FEE_PERCENT, CREATOR_EARNING_PERCENT } from "@/lib/constants";
-import { submitOrder } from "@/lib/pesapal";
+import { PLATFORM_FEE_PERCENT } from "@/lib/constants";
+import { submitOrder, registerIPN } from "@/lib/pesapal";
+import { createServerSupabaseClient, createServiceRoleClient } from "@/lib/supabase/server";
+import { mapProductFromDb, mapOrderFromDb } from "@/lib/db-mappers";
 import type { Order, OrderStatus, PaymentMethod } from "@/types";
 
 export async function POST(request: NextRequest) {
@@ -30,62 +32,62 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get product details
-    const product = getMockProductById(productId);
-    if (!product) {
-      return NextResponse.json(
-        { success: false, error: "Product not found" },
-        { status: 404 }
-      );
-    }
-
-    // Check if product is active
-    if (product.status !== "active") {
-      return NextResponse.json(
-        { success: false, error: "Product is not available for purchase" },
-        { status: 400 }
-      );
-    }
-
-    // For events: check capacity not exceeded
-    if (product.type === "event" && product.capacity !== null) {
-      if (product.ticketsSold >= product.capacity) {
+    if (isUsingMockData()) {
+      // Get product details
+      const product = getMockProductById(productId);
+      if (!product) {
         return NextResponse.json(
-          { success: false, error: "Event is sold out" },
+          { success: false, error: "Product not found" },
+          { status: 404 }
+        );
+      }
+
+      // Check if product is active
+      if (product.status !== "active") {
+        return NextResponse.json(
+          { success: false, error: "Product is not available for purchase" },
           { status: 400 }
         );
       }
-    }
 
-    // Calculate fees
-    const amount = product.price;
-    const platformFee = Math.round((amount * PLATFORM_FEE_PERCENT) / 100);
-    const creatorEarning = amount - platformFee;
+      // For events: check capacity not exceeded
+      if (product.type === "event" && product.capacity !== null) {
+        if (product.ticketsSold >= product.capacity) {
+          return NextResponse.json(
+            { success: false, error: "Event is sold out" },
+            { status: 400 }
+          );
+        }
+      }
 
-    // Create pending order
-    const orderId = `order-${Date.now()}`;
-    const trackingId = `checkout-tracking-${Date.now()}`;
+      // Calculate fees
+      const amount = product.price;
+      const platformFee = Math.round((amount * PLATFORM_FEE_PERCENT) / 100);
+      const creatorEarning = amount - platformFee;
 
-    const newOrder: Order = {
-      id: orderId,
-      creatorId: product.creatorId,
-      productId,
-      buyerEmail,
-      buyerName,
-      amount,
-      platformFee,
-      creatorEarning,
-      currency: product.currency,
-      status: "pending" as OrderStatus,
-      paymentMethod: paymentMethod as PaymentMethod,
-      pesapalOrderTrackingId: trackingId,
-      pesapalTransactionId: null,
-      downloadToken: product.type === "digital" ? `dl-token-${Date.now()}` : null,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
+      // Create pending order
+      const orderId = `order-${Date.now()}`;
+      const trackingId = `checkout-tracking-${Date.now()}`;
 
-    if (isUsingMockData()) {
+      const newOrder: Order = {
+        id: orderId,
+        creatorId: product.creatorId,
+        productId,
+        buyerEmail,
+        buyerName,
+        amount,
+        platformFee,
+        creatorEarning,
+        currency: product.currency,
+        status: "pending" as OrderStatus,
+        paymentMethod: paymentMethod as PaymentMethod,
+        pesapalOrderTrackingId: trackingId,
+        pesapalTransactionId: null,
+        downloadToken: product.type === "digital" ? `dl-token-${Date.now()}` : null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
       // Add to mock orders
       mockOrders.push(newOrder);
 
@@ -133,14 +135,107 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Real Pesapal flow
+    // ── Real Supabase + Pesapal flow ──────────────────────────
+
+    // Get product from Supabase
+    const supabase = await createServerSupabaseClient();
+    if (!supabase) {
+      return NextResponse.json(
+        { success: false, error: "Supabase not configured" },
+        { status: 500 }
+      );
+    }
+
+    const { data: productRow, error: productError } = await supabase
+      .from("products")
+      .select("*")
+      .eq("id", productId)
+      .single();
+
+    if (productError || !productRow) {
+      return NextResponse.json(
+        { success: false, error: "Product not found" },
+        { status: 404 }
+      );
+    }
+
+    const product = mapProductFromDb(productRow);
+
+    // Check if product is active
+    if (product.status !== "active") {
+      return NextResponse.json(
+        { success: false, error: "Product is not available for purchase" },
+        { status: 400 }
+      );
+    }
+
+    // For events: check capacity
+    if (product.type === "event" && product.capacity !== null) {
+      if (product.ticketsSold >= product.capacity) {
+        return NextResponse.json(
+          { success: false, error: "Event is sold out" },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Calculate fees
+    const amount = product.price;
+    const platformFee = Math.round((amount * PLATFORM_FEE_PERCENT) / 100);
+    const creatorEarning = amount - platformFee;
+
+    // Create order in database using service role client (buyer is not authenticated)
+    const serviceClient = createServiceRoleClient();
+    if (!serviceClient) {
+      return NextResponse.json(
+        { success: false, error: "Service unavailable" },
+        { status: 500 }
+      );
+    }
+
+    const orderId = `order-${Date.now()}`;
+
+    // Register IPN with Pesapal
+    const ipnUrl = process.env.PESAPAL_IPN_URL || `${process.env.NEXT_PUBLIC_APP_URL}/api/pesapal/ipn`;
+    const ipnId = await registerIPN(ipnUrl);
+
+    const { data: orderRow, error: orderError } = await serviceClient
+      .from("orders")
+      .insert({
+        id: orderId,
+        product_id: productId,
+        creator_id: product.creatorId,
+        buyer_email: buyerEmail,
+        buyer_name: buyerName,
+        amount,
+        platform_fee: platformFee,
+        creator_earning: creatorEarning,
+        currency: product.currency,
+        status: "pending",
+        payment_method: paymentMethod,
+        download_token: product.type === "digital" ? `dl-token-${Date.now()}` : null,
+      })
+      .select()
+      .single();
+
+    if (orderError || !orderRow) {
+      console.error("Error creating order:", orderError);
+      return NextResponse.json(
+        { success: false, error: "Failed to create order" },
+        { status: 500 }
+      );
+    }
+
+    const order = mapOrderFromDb(orderRow);
+
+    // Call Pesapal to initiate payment
     const pesapalResponse = await submitOrder({
       id: orderId,
       currency: product.currency,
       amount,
       description: `Purchase: ${product.title}`,
       callback_url: `${process.env.NEXT_PUBLIC_APP_URL || ""}/api/pesapal/callback`,
-      notification_id: trackingId,
+      notification_id: ipnId || orderId,
       billing_address: {
         email_address: buyerEmail,
         phone_number: "",
@@ -155,9 +250,14 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    // Update order with actual tracking ID
+    // Update order with Pesapal tracking ID
     if (pesapalResponse?.order_tracking_id) {
-      newOrder.pesapalOrderTrackingId = pesapalResponse.order_tracking_id;
+      await serviceClient
+        .from("orders")
+        .update({
+          pesapal_order_tracking_id: pesapalResponse.order_tracking_id,
+        })
+        .eq("id", orderId);
     }
 
     return NextResponse.json({
@@ -166,7 +266,7 @@ export async function POST(request: NextRequest) {
         orderId,
         paymentUrl: pesapalResponse?.redirect_url || "",
         status: "pending",
-        order: newOrder,
+        order,
       },
     });
   } catch {

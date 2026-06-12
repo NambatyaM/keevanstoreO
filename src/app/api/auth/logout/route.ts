@@ -2,10 +2,18 @@
 // POST /api/auth/logout — Sign out
 // ============================================================
 import { NextResponse } from "next/server";
+import { isUsingMockData } from "@/lib/mock-data";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 export async function POST() {
-  // In mock mode, just return success
-  // In production, would sign out from Supabase
+  if (!isUsingMockData()) {
+    // Sign out from Supabase
+    const supabase = await createServerSupabaseClient();
+    if (supabase) {
+      await supabase.auth.signOut();
+    }
+  }
+
   const response = NextResponse.json({ success: true });
   // Clear auth cookie
   response.cookies.set("keevan-auth", "", {

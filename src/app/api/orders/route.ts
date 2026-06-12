@@ -12,8 +12,10 @@ import {
   mockProducts,
   mockCreators,
 } from "@/lib/mock-data";
-import { PLATFORM_FEE_PERCENT, CREATOR_EARNING_PERCENT } from "@/lib/constants";
-import { submitOrder } from "@/lib/pesapal";
+import { PLATFORM_FEE_PERCENT } from "@/lib/constants";
+import { submitOrder, registerIPN } from "@/lib/pesapal";
+import { createServerSupabaseClient, createServiceRoleClient } from "@/lib/supabase/server";
+import { mapOrderFromDb, mapProductFromDb } from "@/lib/db-mappers";
 import type { Order, OrderStatus, PaymentMethod } from "@/types";
 
 export async function GET(request: NextRequest) {
@@ -49,10 +51,55 @@ export async function GET(request: NextRequest) {
     }
 
     // Real Supabase query
+    const supabase = await createServerSupabaseClient();
+    if (!supabase) {
+      return NextResponse.json({
+        success: true,
+        data: [],
+        total: 0,
+      });
+    }
+
+    // Verify authenticated user
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user || user.id !== creatorId) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized" },
+        { status: 403 }
+      );
+    }
+
+    let query = supabase
+      .from("orders")
+      .select("*")
+      .eq("creator_id", creatorId);
+
+    if (status) {
+      query = query.eq("status", status);
+    }
+
+    query = query.order("created_at", { ascending: false });
+
+    const { data: orderRows, error } = await query;
+
+    if (error) {
+      console.error("Error fetching orders:", error);
+      return NextResponse.json({
+        success: true,
+        data: [],
+        total: 0,
+      });
+    }
+
+    const orders = (orderRows || []).map((row) => mapOrderFromDb(row));
+
     return NextResponse.json({
       success: true,
-      data: [],
-      total: 0,
+      data: orders,
+      total: orders.length,
     });
   } catch {
     return NextResponse.json(
@@ -132,7 +179,6 @@ export async function POST(request: NextRequest) {
       };
 
       // Simulate Pesapal payment — auto-complete after brief delay
-      // In mock mode, we return the order as pending but simulate completion
       setTimeout(() => {
         const orderIndex = mockOrders.findIndex((o) => o.id === orderId);
         if (orderIndex >= 0) {
@@ -178,19 +224,94 @@ export async function POST(request: NextRequest) {
     }
 
     // Real Supabase + Pesapal flow
-    const product = getMockProductById(productId);
-    if (!product) {
+    const supabase = await createServerSupabaseClient();
+    if (!supabase) {
+      return NextResponse.json(
+        { success: false, error: "Supabase not configured" },
+        { status: 500 }
+      );
+    }
+
+    // Get product from Supabase
+    const { data: productRow, error: productError } = await supabase
+      .from("products")
+      .select("*")
+      .eq("id", productId)
+      .single();
+
+    if (productError || !productRow) {
       return NextResponse.json(
         { success: false, error: "Product not found" },
         { status: 404 }
       );
     }
 
+    const product = mapProductFromDb(productRow);
+
+    // Validate product is active
+    if (product.status !== "active") {
+      return NextResponse.json(
+        { success: false, error: "Product is not available for purchase" },
+        { status: 400 }
+      );
+    }
+
+    // Check event capacity
+    if (product.type === "event" && product.capacity !== null) {
+      if (product.ticketsSold >= product.capacity) {
+        return NextResponse.json(
+          { success: false, error: "Event is sold out" },
+          { status: 400 }
+        );
+      }
+    }
+
     const amount = product.price;
     const platformFee = Math.round((amount * PLATFORM_FEE_PERCENT) / 100);
     const creatorEarning = amount - platformFee;
     const orderId = `order-${Date.now()}`;
-    const trackingId = `mock-tracking-${Date.now()}`;
+
+    // Register IPN with Pesapal
+    const ipnUrl = process.env.PESAPAL_IPN_URL || `${process.env.NEXT_PUBLIC_APP_URL}/api/pesapal/ipn`;
+    const ipnId = await registerIPN(ipnUrl);
+
+    // Create order in database
+    const serviceClient = createServiceRoleClient();
+    if (!serviceClient) {
+      return NextResponse.json(
+        { success: false, error: "Service unavailable" },
+        { status: 500 }
+      );
+    }
+
+    const { data: orderRow, error: orderError } = await serviceClient
+      .from("orders")
+      .insert({
+        id: orderId,
+        product_id: productId,
+        creator_id: creatorId,
+        buyer_email: buyerEmail,
+        buyer_name: buyerName,
+        amount,
+        platform_fee: platformFee,
+        creator_earning: creatorEarning,
+        currency: product.currency,
+        status: "pending",
+        payment_method: paymentMethod,
+        download_token: product.type === "digital" ? `dl-token-${Date.now()}` : null,
+      })
+      .select()
+      .single();
+
+    if (orderError || !orderRow) {
+      console.error("Error creating order:", orderError);
+      return NextResponse.json(
+        { success: false, error: "Failed to create order" },
+        { status: 500 }
+      );
+    }
+
+    const order = mapOrderFromDb(orderRow);
 
     // Call Pesapal to initiate payment
     const pesapalResponse = await submitOrder({
@@ -199,7 +320,7 @@ export async function POST(request: NextRequest) {
       amount,
       description: `Purchase: ${product.title}`,
       callback_url: `${process.env.NEXT_PUBLIC_APP_URL || ""}/api/pesapal/callback`,
-      notification_id: trackingId,
+      notification_id: ipnId || orderId,
       billing_address: {
         email_address: buyerEmail,
         phone_number: "",
@@ -214,30 +335,23 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    const newOrder: Order = {
-      id: orderId,
-      creatorId,
-      productId,
-      buyerEmail,
-      buyerName,
-      amount,
-      platformFee,
-      creatorEarning,
-      currency: product.currency,
-      status: "pending" as OrderStatus,
-      paymentMethod: paymentMethod as PaymentMethod,
-      pesapalOrderTrackingId: pesapalResponse?.order_tracking_id || trackingId,
-      pesapalTransactionId: null,
-      downloadToken: product.type === "digital" ? `dl-token-${Date.now()}` : null,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
+    // Update order with Pesapal tracking ID
+    if (pesapalResponse?.order_tracking_id) {
+      await serviceClient
+        .from("orders")
+        .update({
+          pesapal_order_tracking_id: pesapalResponse.order_tracking_id,
+        })
+        .eq("id", orderId);
+
+      order.pesapalOrderTrackingId = pesapalResponse.order_tracking_id;
+    }
 
     return NextResponse.json({
       success: true,
       data: {
-        order: newOrder,
-        pesapalTrackingId: pesapalResponse?.order_tracking_id || trackingId,
+        order,
+        pesapalTrackingId: pesapalResponse?.order_tracking_id || orderId,
         paymentUrl: pesapalResponse?.redirect_url || "",
       },
     });

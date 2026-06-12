@@ -8,6 +8,8 @@ import {
   mockCreators,
   getMockCreatorById,
 } from "@/lib/mock-data";
+import { createServiceRoleClient } from "@/lib/supabase/server";
+import { mapCreatorFromDb } from "@/lib/db-mappers";
 
 export async function GET() {
   try {
@@ -19,11 +21,36 @@ export async function GET() {
       });
     }
 
-    // Real Supabase query
+    // Real Supabase query using service role client
+    const serviceClient = createServiceRoleClient();
+    if (!serviceClient) {
+      return NextResponse.json({
+        success: true,
+        data: [],
+        total: 0,
+      });
+    }
+
+    const { data: creatorRows, error } = await serviceClient
+      .from("creators")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("Error fetching creators:", error);
+      return NextResponse.json({
+        success: true,
+        data: [],
+        total: 0,
+      });
+    }
+
+    const creators = (creatorRows || []).map((row) => mapCreatorFromDb(row));
+
     return NextResponse.json({
       success: true,
-      data: [],
-      total: 0,
+      data: creators,
+      total: creators.length,
     });
   } catch {
     return NextResponse.json(
@@ -62,9 +89,6 @@ export async function PATCH(request: NextRequest) {
         );
       }
 
-      // For mock purposes, we track verification and active status
-      // The Creator type doesn't have these fields explicitly, but we return a success response
-      // with the action applied
       return NextResponse.json({
         success: true,
         data: {
@@ -77,11 +101,53 @@ export async function PATCH(request: NextRequest) {
       });
     }
 
-    // Real Supabase update
-    return NextResponse.json(
-      { success: false, error: "Supabase not configured" },
-      { status: 500 }
-    );
+    // Real Supabase update using service role client
+    const serviceClient = createServiceRoleClient();
+    if (!serviceClient) {
+      return NextResponse.json(
+        { success: false, error: "Supabase not configured" },
+        { status: 500 }
+      );
+    }
+
+    const updates: Record<string, unknown> = {};
+
+    switch (action) {
+      case "activate":
+        updates.is_active = true;
+        break;
+      case "deactivate":
+        updates.is_active = false;
+        break;
+      case "verify":
+        updates.is_verified = true;
+        break;
+      case "unverify":
+        updates.is_verified = false;
+        break;
+    }
+
+    const { data: updatedRow, error: updateError } = await serviceClient
+      .from("creators")
+      .update(updates)
+      .eq("id", creatorId)
+      .select()
+      .single();
+
+    if (updateError || !updatedRow) {
+      console.error("Error updating creator:", updateError);
+      return NextResponse.json(
+        { success: false, error: "Creator not found or update failed" },
+        { status: 404 }
+      );
+    }
+
+    const creator = mapCreatorFromDb(updatedRow);
+
+    return NextResponse.json({
+      success: true,
+      data: creator,
+    });
   } catch {
     return NextResponse.json(
       { success: false, error: "Internal server error" },
