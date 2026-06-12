@@ -97,7 +97,8 @@ export async function GET(request: NextRequest) {
       data: tickets,
       total: tickets.length,
     });
-  } catch {
+  } catch (error) {
+    console.error("Error in tickets GET:", error instanceof Error ? error.message : String(error));
     return NextResponse.json(
       { success: false, error: "Internal server error" },
       { status: 500 }
@@ -175,7 +176,8 @@ export async function POST(request: NextRequest) {
       },
       { status: 501 }
     );
-  } catch {
+  } catch (error) {
+    console.error("Error in tickets POST:", error instanceof Error ? error.message : String(error));
     return NextResponse.json(
       { success: false, error: "Internal server error" },
       { status: 500 }

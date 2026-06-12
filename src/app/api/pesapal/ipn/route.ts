@@ -79,72 +79,53 @@ export async function POST(request: NextRequest) {
     }
 
     if (transactionStatus.payment_status === "COMPLETED") {
-      const creatorEarning = Number(orderRow.creator_earning);
-      const creatorId = orderRow.creator_id;
-      const productId = orderRow.product_id;
+      // Use the atomic process_completed_payment RPC function
+      // This handles order status, creator balance, product sales count, and event tickets atomically
+      // preventing TOCTOU race conditions from concurrent IPN callbacks
+      const { error: rpcError } = await serviceClient.rpc("process_completed_payment", {
+        p_order_id: orderRow.id,
+        p_pesapal_transaction_id: transactionStatus.confirmation_code || "",
+      });
 
-      // Update order status to completed
-      await serviceClient
-        .from("orders")
-        .update({
-          status: "completed",
-          pesapal_transaction_id: transactionStatus.confirmation_code,
-        })
-        .eq("id", orderRow.id);
-
-      // Update creator balance and total_earnings (service role bypasses RLS)
-      const { data: creatorData } = await serviceClient
-        .from("creators")
-        .select("balance, total_earnings, total_sales")
-        .eq("id", creatorId)
-        .single();
-
-      if (creatorData) {
-        await serviceClient
-          .from("creators")
-          .update({
-            balance: Number(creatorData.balance) + creatorEarning,
-            total_earnings: Number(creatorData.total_earnings) + creatorEarning,
-            total_sales: Number(creatorData.total_sales) + 1,
-          })
-          .eq("id", creatorId);
+      if (rpcError) {
+        console.error("process_completed_payment RPC failed:", rpcError.message);
+        // If RPC fails (e.g., order not found or already completed), it's not a server error
+        // The RPC has its own idempotency check
       }
 
-      // Update product sales_count
-      const { data: productData } = await serviceClient
-        .from("products")
-        .select("sales_count, type")
-        .eq("id", productId)
-        .single();
+      const productId = orderRow.product_id;
 
-      if (productData) {
-        const productUpdates: Record<string, unknown> = {
-          sales_count: Number(productData.sales_count) + 1,
-        };
-
-        await serviceClient
+      // For digital products: generate download token and session if not already set
+      if (orderRow.download_token === null) {
+        const { data: productTypeData } = await serviceClient
           .from("products")
-          .update(productUpdates)
-          .eq("id", productId);
+          .select("type")
+          .eq("id", productId)
+          .single();
 
-        // For events: increment tickets_sold and create ticket record
-        if (productData.type === "event") {
-          const { data: eventData } = await serviceClient
-            .from("events")
-            .select("tickets_sold")
-            .eq("product_id", productId)
-            .single();
+        if (productTypeData?.type === "digital") {
+          const downloadToken = `dl-${crypto.randomUUID()}`;
+          await serviceClient
+            .from("orders")
+            .update({
+              download_token: downloadToken,
+            })
+            .eq("id", orderRow.id);
 
-          if (eventData) {
-            await serviceClient
-              .from("events")
-              .update({
-                tickets_sold: Number(eventData.tickets_sold) + 1,
-              })
-              .eq("product_id", productId);
-          }
+          // Create a download session for the digital product
+          await serviceClient
+            .from("download_sessions")
+            .insert({
+              order_id: orderRow.id,
+              product_id: productId,
+              download_token: crypto.randomUUID(),
+              expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+              max_downloads: 5,
+            });
+        }
 
-          // Create a ticket record for this event purchase
+        // For events: create a ticket record (RPC handles tickets_sold increment)
+        if (productTypeData?.type === "event") {
           await serviceClient.from("tickets").insert({
             order_id: orderRow.id,
             event_id: productId,
@@ -153,28 +134,6 @@ export async function POST(request: NextRequest) {
             qr_code_data: `QR-${orderRow.id}`,
           });
         }
-      }
-
-      // For digital products: generate download token if not already set
-      if (orderRow.download_token === null && productData?.type === "digital") {
-        const downloadToken = `dl-${crypto.randomUUID()}`;
-        await serviceClient
-          .from("orders")
-          .update({
-            download_token: downloadToken,
-          })
-          .eq("id", orderRow.id);
-
-        // Create a download session for the digital product
-        await serviceClient
-          .from("download_sessions")
-          .insert({
-            order_id: orderRow.id,
-            product_id: productId,
-            download_token: crypto.randomUUID(),
-            expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-            max_downloads: 5,
-          });
       }
 
       console.log("Payment completed for order:", orderRow.id);
@@ -199,8 +158,8 @@ export async function POST(request: NextRequest) {
       orderNotificationType: OrderNotificationType,
       orderMerchantReference: OrderMerchantReference,
     });
-  } catch {
-    console.error("Error processing Pesapal IPN");
+  } catch (error) {
+    console.error("Error processing Pesapal IPN:", error instanceof Error ? error.message : String(error));
     return NextResponse.json(
       { success: false, error: "Internal server error" },
       { status: 500 }

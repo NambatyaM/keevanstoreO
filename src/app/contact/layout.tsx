@@ -19,7 +19,6 @@ export const metadata: Metadata = {
     title: "Contact Us — Keevan Store",
     description:
       "Have a question or need help? Contact the Keevan Store team. We respond within 24-48 hours.",
-    url: "https://keevanstore.in/contact",
     type: "website",
   },
   twitter: {
@@ -29,7 +28,7 @@ export const metadata: Metadata = {
       "Have a question or need help? Contact the Keevan Store team. We respond within 24-48 hours.",
   },
   alternates: {
-    canonical: "https://keevanstore.in/contact",
+    canonical: "/contact",
   },
 };
 

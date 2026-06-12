@@ -68,7 +68,8 @@ export async function GET(
 
     const order = mapOrderFromDb(orderRow);
     return NextResponse.json({ success: true, data: order });
-  } catch {
+  } catch (error) {
+    console.error("Error in orders GET:", error instanceof Error ? error.message : String(error));
     return NextResponse.json(
       { success: false, error: "Internal server error" },
       { status: 500 }

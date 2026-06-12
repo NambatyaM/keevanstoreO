@@ -24,7 +24,6 @@ export const metadata: Metadata = {
     title: "Privacy Policy — Keevan Store",
     description:
       "Learn how Keevan Store collects, uses, and protects your personal data. Includes cookie and advertising disclosure.",
-    url: "https://keevanstore.in/privacy",
     type: "website",
   },
   twitter: {
@@ -34,7 +33,7 @@ export const metadata: Metadata = {
       "Learn how Keevan Store collects, uses, and protects your personal data. Includes cookie and advertising disclosure.",
   },
   alternates: {
-    canonical: "https://keevanstore.in/privacy",
+    canonical: "/privacy",
   },
 };
 

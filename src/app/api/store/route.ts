@@ -116,7 +116,8 @@ export async function GET(request: NextRequest) {
       { success: false, error: "Username or creator_id required" },
       { status: 400 }
     );
-  } catch {
+  } catch (error) {
+    console.error("Error in store GET:", error instanceof Error ? error.message : String(error));
     return NextResponse.json(
       { success: false, error: "Internal server error" },
       { status: 500 }
@@ -209,7 +210,8 @@ export async function PUT(request: NextRequest) {
 
     const updatedCreator = mapCreatorFromDb(updatedRow);
     return NextResponse.json({ success: true, data: updatedCreator });
-  } catch {
+  } catch (error) {
+    console.error("Error in store PUT:", error instanceof Error ? error.message : String(error));
     return NextResponse.json(
       { success: false, error: "Internal server error" },
       { status: 500 }
@@ -258,7 +260,8 @@ export async function POST(request: NextRequest) {
       { success: false, error: "Invalid request" },
       { status: 400 }
     );
-  } catch {
+  } catch (error) {
+    console.error("Error in store POST:", error instanceof Error ? error.message : String(error));
     return NextResponse.json(
       { success: false, error: "Internal server error" },
       { status: 500 }

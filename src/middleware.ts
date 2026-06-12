@@ -56,9 +56,27 @@ export async function middleware(request: NextRequest) {
     let isAuthorized = false;
 
     if (isAuthenticated) {
-      // For real Supabase auth, we need to check is_admin on the server
-      // The admin layout also checks client-side, but this is the server-side gate
-      isAuthorized = true;
+      // For real Supabase auth, check is_admin from the creators table
+      // We use the service role to query the user's admin status
+      try {
+        const { createServerSupabaseClient } = await import("@/lib/supabase/server");
+        const supabase = await createServerSupabaseClient();
+        if (supabase) {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+            const { data: creatorRow } = await supabase
+              .from("creators")
+              .select("is_admin")
+              .eq("id", user.id)
+              .single();
+            if (creatorRow?.is_admin) {
+              isAuthorized = true;
+            }
+          }
+        }
+      } catch {
+        // If Supabase check fails, fall through to mock check
+      }
     }
 
     // Check mock auth cookie

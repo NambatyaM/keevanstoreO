@@ -24,7 +24,6 @@ export const metadata: Metadata = {
     title: "Terms and Conditions — Keevan Store",
     description:
       "Read the Terms and Conditions for using Keevan Store, including rules, IP guidelines, and dispute resolution.",
-    url: "https://keevanstore.in/terms",
     type: "website",
   },
   twitter: {
@@ -34,7 +33,7 @@ export const metadata: Metadata = {
       "Read the Terms and Conditions for using Keevan Store, including rules, IP guidelines, and dispute resolution.",
   },
   alternates: {
-    canonical: "https://keevanstore.in/terms",
+    canonical: "/terms",
   },
 };
 
@@ -243,7 +242,7 @@ export default function TermsAndConditionsPage() {
             <h3>6.3 Infringement Claims</h3>
             <p>
               If you believe that content on Keevan Store infringes your intellectual property rights,
-              please contact us at legal@keevanstore.in with a description of the infringing content,
+              please contact us on WhatsApp at +256 768 345 905 with a description of the infringing content,
               the URL where it appears, proof of your ownership of the rights, and your contact
               information. We will investigate all legitimate claims and may remove infringing content
               and suspend the accounts of repeat infringers.

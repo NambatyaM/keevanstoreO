@@ -500,6 +500,78 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- ============================================================
+-- Atomic Increment Functions (prevent TOCTOU race conditions)
+-- ============================================================
+
+-- Atomically increment creator earnings (balance + total_earnings + total_sales)
+CREATE OR REPLACE FUNCTION increment_creator_earnings(
+  p_creator_id UUID,
+  p_amount NUMERIC
+)
+RETURNS void AS $$
+BEGIN
+  UPDATE creators
+  SET balance = balance + p_amount,
+      total_earnings = total_earnings + p_amount,
+      total_sales = total_sales + 1
+  WHERE id = p_creator_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Atomically increment product sales_count
+CREATE OR REPLACE FUNCTION increment_product_sales(
+  p_product_id UUID
+)
+RETURNS void AS $$
+BEGIN
+  UPDATE products
+  SET sales_count = sales_count + 1
+  WHERE id = p_product_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Atomically increment event tickets_sold
+CREATE OR REPLACE FUNCTION increment_event_tickets(
+  p_product_id UUID
+)
+RETURNS void AS $$
+BEGIN
+  UPDATE events
+  SET tickets_sold = tickets_sold + 1
+  WHERE product_id = p_product_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Atomically process a donation (increment balance, total_earnings, total_sales, donation_current)
+CREATE OR REPLACE FUNCTION process_donation(
+  p_creator_id UUID,
+  p_amount NUMERIC,
+  p_creator_earning NUMERIC
+)
+RETURNS void AS $$
+BEGIN
+  UPDATE creators
+  SET balance = balance + p_creator_earning,
+      total_earnings = total_earnings + p_creator_earning,
+      total_sales = total_sales + 1,
+      donation_current = donation_current + p_amount
+  WHERE id = p_creator_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Atomically increment creator total_views
+CREATE OR REPLACE FUNCTION increment_creator_views(
+  p_creator_id UUID
+)
+RETURNS void AS $$
+BEGIN
+  UPDATE creators
+  SET total_views = total_views + 1
+  WHERE id = p_creator_id;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- ============================================================
 -- Seed Data (optional, for development/testing)
 -- ============================================================
 

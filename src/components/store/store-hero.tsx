@@ -74,18 +74,22 @@ export function StoreHero({ creator }: StoreHeroProps) {
         {/* Social Links */}
         {creator.socialLinks && creator.socialLinks.length > 0 && (
           <div className="flex items-center gap-3 mt-3">
-            {creator.socialLinks.map((link, i) => (
-              <a
-                key={i}
-                href={link.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-muted-foreground hover:text-emerald-600 transition-colors"
-                aria-label={link.platform}
-              >
-                <SocialIcon platform={link.platform} />
-              </a>
-            ))}
+            {creator.socialLinks.map((link, i) => {
+              // Only allow http/https URLs to prevent javascript: scheme XSS
+              const safeUrl = /^https?:\/\//i.test(link.url) ? link.url : "#";
+              return (
+                <a
+                  key={i}
+                  href={safeUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-muted-foreground hover:text-emerald-600 transition-colors"
+                  aria-label={link.platform}
+                >
+                  <SocialIcon platform={link.platform} />
+                </a>
+              );
+            })}
           </div>
         )}
       </div>

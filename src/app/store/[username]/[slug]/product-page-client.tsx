@@ -94,8 +94,11 @@ export function ProductPageClient({ creator, product, username, slug }: ProductP
 
       const data = await response.json();
 
-      if (data.success && data.data?.redirectUrl) {
+      if (data.success && data.data?.paymentUrl) {
         // Redirect to Pesapal payment page
+        window.location.href = data.data.paymentUrl;
+      } else if (data.success && data.data?.redirectUrl) {
+        // Fallback for mock mode or alternate response format
         window.location.href = data.data.redirectUrl;
       } else {
         toast.error(data.error || "Payment failed. Please try again.");

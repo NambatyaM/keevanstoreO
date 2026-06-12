@@ -19,12 +19,16 @@ const CALLMEBOT_APIKEY = process.env.CALLMEBOT_APIKEY || "";
  * Messages are also always stored in Supabase regardless of WhatsApp delivery.
  */
 export async function sendWhatsAppNotification(message: string): Promise<boolean> {
-  // Always log to console as backup
-  console.log(`📱 WhatsApp notification → ${ADMIN_WHATSAPP}:`);
-  console.log(`   ${message.substring(0, 200)}${message.length > 200 ? "..." : ""}`);
+  // Log to console only in development
+  if (process.env.NODE_ENV === "development") {
+    console.log(`📱 WhatsApp notification → ${ADMIN_WHATSAPP}:`);
+    console.log(`   ${message.substring(0, 200)}${message.length > 200 ? "..." : ""}`);
+  }
 
   if (!CALLMEBOT_APIKEY) {
-    console.log("   ⚠️ CALLMEBOT_APIKEY not set — WhatsApp notification skipped. Add it to .env to enable.");
+    if (process.env.NODE_ENV === "development") {
+      console.log("   ⚠️ CALLMEBOT_APIKEY not set — WhatsApp notification skipped.");
+    }
     return false;
   }
 
@@ -38,11 +42,10 @@ export async function sendWhatsAppNotification(message: string): Promise<boolean
     });
 
     if (response.ok) {
-      console.log("   ✅ WhatsApp notification sent successfully");
       return true;
     } else {
       const text = await response.text().catch(() => "unknown error");
-      console.error(`   ❌ WhatsApp notification failed: ${response.status} — ${text}`);
+      console.error(`WhatsApp notification failed: ${response.status} — ${text}`);
       return false;
     }
   } catch (error) {
@@ -87,13 +90,18 @@ export async function notifyWithdrawalRequest(data: {
   provider: string;
   withdrawalId: string;
 }): Promise<void> {
-  const formattedAmount = data.amount.toLocaleString("en-UG");
+  const formattedAmount = new Intl.NumberFormat("en-UG", {
+    style: "currency",
+    currency: "UGX",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(data.amount);
 
   const text = [
     "💰 *Withdrawal Request*",
     `*Creator:* ${data.creatorName}`,
     `*Email:* ${data.creatorEmail}`,
-    `*Amount:* UGX ${formattedAmount}`,
+    `*Amount:* ${formattedAmount}`,
     `*Send to:* ${data.phoneNumber} (${data.provider})`,
     `*Request ID:* ${data.withdrawalId}`,
     "",
@@ -113,13 +121,18 @@ export async function notifyNewOrder(data: {
   amount: number;
   creatorName: string;
 }): Promise<void> {
-  const formattedAmount = data.amount.toLocaleString("en-UG");
+  const formattedAmount = new Intl.NumberFormat("en-UG", {
+    style: "currency",
+    currency: "UGX",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(data.amount);
 
   const text = [
     "🛒 *New Sale!*",
     `*Product:* ${data.productTitle}`,
     `*Buyer:* ${data.buyerName} (${data.buyerEmail})`,
-    `*Amount:* UGX ${formattedAmount}`,
+    `*Amount:* ${formattedAmount}`,
     `*Creator:* ${data.creatorName}`,
   ].join("\n");
 

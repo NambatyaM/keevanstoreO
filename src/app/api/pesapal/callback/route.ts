@@ -172,7 +172,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(
       new URL(`/payment/cancel?reason=${reason}`, request.url)
     );
-  } catch {
+  } catch (error) {
+    console.error("Error in pesapal callback GET:", error instanceof Error ? error.message : String(error));
     return NextResponse.redirect(
       new URL("/payment/cancel?reason=server_error", request.url)
     );

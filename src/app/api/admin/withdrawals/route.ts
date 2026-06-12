@@ -87,7 +87,8 @@ export async function GET(request: NextRequest) {
       data: withdrawalsWithCreator,
       total: withdrawalsWithCreator.length,
     });
-  } catch {
+  } catch (error) {
+    console.error("Error in admin withdrawals GET:", error instanceof Error ? error.message : String(error));
     return NextResponse.json(
       { success: false, error: "Internal server error" },
       { status: 500 }
@@ -235,7 +236,8 @@ export async function PATCH(request: NextRequest) {
         data: withdrawal,
       });
     }
-  } catch {
+  } catch (error) {
+    console.error("Error in admin withdrawals PATCH:", error instanceof Error ? error.message : String(error));
     return NextResponse.json(
       { success: false, error: "Internal server error" },
       { status: 500 }

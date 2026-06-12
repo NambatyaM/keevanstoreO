@@ -4,10 +4,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isUsingMockData } from "@/lib/mock-data";
 import { createServiceRoleClient } from "@/lib/supabase/server";
+import { checkRateLimit, getClientId } from "@/lib/rate-limit";
 import type { PageView } from "@/types";
 
 export async function POST(request: NextRequest) {
   try {
+    // Rate limit: 30 page view requests per minute per IP
+    const clientId = getClientId(request);
+    const rateLimit = checkRateLimit(`page-views:${clientId}`, 30, 60 * 1000);
+    if (!rateLimit.allowed) {
+      return NextResponse.json({ success: true }); // Silently acknowledge, don't error
+    }
+
     const { creatorId, page, referrer, productId } = await request.json();
 
     if (!creatorId || !page) {
@@ -66,24 +74,27 @@ export async function POST(request: NextRequest) {
       // Don't fail the request, just log the error
     }
 
-    // Also increment creator total_views
-    const { data: creatorRow } = await serviceClient
-      .from("creators")
-      .select("total_views")
-      .eq("id", creatorId)
-      .single();
-
-    if (creatorRow) {
-      await serviceClient
+    // Also increment creator total_views atomically
+    const { error: viewUpdateError } = await serviceClient.rpc("increment_creator_views", { p_creator_id: creatorId });
+    if (viewUpdateError) {
+      // Fallback: direct update if RPC doesn't exist
+      console.error("RPC increment_creator_views failed:", viewUpdateError.message);
+      const { data: creatorRow } = await serviceClient
         .from("creators")
-        .update({
-          total_views: Number(creatorRow.total_views) + 1,
-        })
-        .eq("id", creatorId);
+        .select("total_views")
+        .eq("id", creatorId)
+        .single();
+      if (creatorRow) {
+        await serviceClient
+          .from("creators")
+          .update({ total_views: Number(creatorRow.total_views) + 1 })
+          .eq("id", creatorId);
+      }
     }
 
     return NextResponse.json({ success: true });
-  } catch {
+  } catch (error) {
+    console.error("Error in page-views POST:", error instanceof Error ? error.message : String(error));
     return NextResponse.json(
       { success: false, error: "Internal server error" },
       { status: 500 }

@@ -42,7 +42,6 @@ export const metadata: Metadata = {
     title: "About Keevan Store — How It Works",
     description:
       "Keevan Store lets creators in Uganda sell digital products, event tickets, and accept donations with mobile money payments. Learn how the platform works.",
-    url: "https://keevanstore.in/about",
     type: "website",
   },
   twitter: {
@@ -52,7 +51,7 @@ export const metadata: Metadata = {
       "Keevan Store lets creators in Uganda sell digital products, event tickets, and accept donations with mobile money payments.",
   },
   alternates: {
-    canonical: "https://keevanstore.in/about",
+    canonical: "/about",
   },
 };
 
@@ -187,7 +186,7 @@ export default function AboutPage() {
     "@context": "https://schema.org",
     "@type": "Organization",
     name: "Keevan Store",
-    url: "https://keevanstore.in",
+    url: process.env.NEXT_PUBLIC_APP_URL || "https://keevanstore.in",
     description:
       "Keevan Store is a creator commerce platform for Ugandan creators to sell digital products, event tickets, and accept donations with mobile money payments.",
     foundingLocation: {

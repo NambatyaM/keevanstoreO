@@ -112,7 +112,7 @@ export function ProductCard({
           <div className="mt-1.5">
             <div className="flex justify-between text-xs text-muted-foreground">
               <span>{product.ticketsSold} / {product.capacity} tickets</span>
-              <span>{product.capacity - product.ticketsSold} left</span>
+              <span>{Math.max(0, product.capacity - product.ticketsSold)} left</span>
             </div>
             <div className="mt-1 h-1.5 bg-muted rounded-full overflow-hidden">
               <div

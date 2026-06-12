@@ -106,7 +106,9 @@ export async function POST(request: NextRequest) {
       mockContactMessages.push(contactMessage);
 
       // Send WhatsApp notification to admin
-      notifyContactForm(sanitizedData).catch(() => {});
+      notifyContactForm(sanitizedData).catch((err) => {
+        console.error("Failed to send contact notification:", err instanceof Error ? err.message : String(err));
+      });
 
       return NextResponse.json({
         success: true,
@@ -143,13 +145,16 @@ export async function POST(request: NextRequest) {
     }
 
     // Send WhatsApp notification to admin (non-blocking)
-    notifyContactForm(sanitizedData).catch(() => {});
+    notifyContactForm(sanitizedData).catch((err) => {
+      console.error("Failed to send contact notification:", err instanceof Error ? err.message : String(err));
+    });
 
     return NextResponse.json({
       success: true,
       data: { id: data.id },
     });
-  } catch {
+  } catch (error) {
+    console.error("Error in contact POST:", error instanceof Error ? error.message : String(error));
     return NextResponse.json(
       { success: false, error: "Internal server error. Please try again." },
       { status: 500 }
@@ -225,7 +230,8 @@ export async function GET(request: NextRequest) {
       total: count || 0,
       unread: (data || []).filter((m: { is_read: boolean }) => !m.is_read).length,
     });
-  } catch {
+  } catch (error) {
+    console.error("Error in contact GET:", error instanceof Error ? error.message : String(error));
     return NextResponse.json(
       { success: false, error: "Internal server error" },
       { status: 500 }

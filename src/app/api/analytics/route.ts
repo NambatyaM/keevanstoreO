@@ -323,7 +323,8 @@ export async function GET(request: NextRequest) {
         viewsChange,
       },
     });
-  } catch {
+  } catch (error) {
+    console.error("Error in analytics GET:", error instanceof Error ? error.message : String(error));
     return NextResponse.json(
       { success: false, error: "Internal server error" },
       { status: 500 }

@@ -114,7 +114,8 @@ export async function POST(request: NextRequest) {
     });
 
     return response;
-  } catch {
+  } catch (error) {
+    console.error("Error in login POST:", error instanceof Error ? error.message : String(error));
     return NextResponse.json(
       { success: false, error: "Internal server error" },
       { status: 500 }
@@ -137,7 +138,8 @@ export async function GET(request: NextRequest) {
             data: creator,
           });
         }
-      } catch {
+      } catch (error) {
+        console.error("Error in login GET cookie parse:", error instanceof Error ? error.message : String(error));
         // Invalid cookie, fall through
       }
     }

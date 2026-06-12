@@ -62,7 +62,8 @@ export async function GET(request: NextRequest) {
       data: creators,
       total: creators.length,
     });
-  } catch {
+  } catch (error) {
+    console.error("Error in admin creators GET:", error instanceof Error ? error.message : String(error));
     return NextResponse.json(
       { success: false, error: "Internal server error" },
       { status: 500 }
@@ -167,7 +168,8 @@ export async function PATCH(request: NextRequest) {
       success: true,
       data: creator,
     });
-  } catch {
+  } catch (error) {
+    console.error("Error in admin creators PATCH:", error instanceof Error ? error.message : String(error));
     return NextResponse.json(
       { success: false, error: "Internal server error" },
       { status: 500 }

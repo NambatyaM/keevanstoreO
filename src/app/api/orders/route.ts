@@ -101,7 +101,8 @@ export async function GET(request: NextRequest) {
       data: orders,
       total: orders.length,
     });
-  } catch {
+  } catch (error) {
+    console.error("Error in orders GET:", error instanceof Error ? error.message : String(error));
     return NextResponse.json(
       { success: false, error: "Internal server error" },
       { status: 500 }
@@ -370,7 +371,8 @@ export async function POST(request: NextRequest) {
         paymentUrl: pesapalResponse?.redirect_url || "",
       },
     });
-  } catch {
+  } catch (error) {
+    console.error("Error in orders POST:", error instanceof Error ? error.message : String(error));
     return NextResponse.json(
       { success: false, error: "Internal server error" },
       { status: 500 }

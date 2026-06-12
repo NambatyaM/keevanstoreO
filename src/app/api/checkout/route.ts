@@ -295,7 +295,8 @@ export async function POST(request: NextRequest) {
         order,
       },
     });
-  } catch {
+  } catch (error) {
+    console.error("Error in checkout POST:", error instanceof Error ? error.message : String(error));
     return NextResponse.json(
       { success: false, error: "Internal server error" },
       { status: 500 }

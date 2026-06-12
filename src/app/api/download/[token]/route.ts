@@ -174,7 +174,8 @@ export async function GET(
 
         try {
           downloadUrl = await getSignedUrl(bucket, key);
-        } catch {
+        } catch (error) {
+          console.error("Error in download GET signed URL:", error instanceof Error ? error.message : String(error));
           // Fallback to the raw URL
           downloadUrl = fileUrl;
         }
@@ -215,7 +216,8 @@ export async function GET(
         createdAt: sessionRow.created_at,
       },
     });
-  } catch {
+  } catch (error) {
+    console.error("Error in download GET:", error instanceof Error ? error.message : String(error));
     return NextResponse.json(
       { success: false, error: "Internal server error" },
       { status: 500 }

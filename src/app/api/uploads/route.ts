@@ -4,6 +4,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { uploadFile } from "@/lib/r2";
 import { verifyAuth } from "@/lib/auth-helpers";
+import { checkRateLimit, getClientId } from "@/lib/rate-limit";
 
 // Allowed MIME types for upload
 const ALLOWED_MIME_TYPES: Record<string, string[]> = {
@@ -41,6 +42,16 @@ function sanitizePathSegment(input: string): string {
 
 export async function POST(request: NextRequest) {
   try {
+    // Rate limit: 10 uploads per minute per IP
+    const clientId = getClientId(request);
+    const rateLimit = checkRateLimit(`uploads:${clientId}`, 10, 60 * 1000);
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { success: false, error: "Too many upload attempts. Please try again later." },
+        { status: 429 }
+      );
+    }
+
     // Authentication check — user must be logged in
     const authResult = await verifyAuth(request);
     if (!authResult.isAuthenticated) {
@@ -110,7 +121,8 @@ export async function POST(request: NextRequest) {
         contentType: file.type,
       },
     });
-  } catch {
+  } catch (error) {
+    console.error("Error in uploads POST:", error instanceof Error ? error.message : String(error));
     return NextResponse.json(
       { success: false, error: "Upload failed" },
       { status: 500 }

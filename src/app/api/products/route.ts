@@ -12,6 +12,7 @@ import {
 import { MIN_PRODUCT_PRICE } from "@/lib/constants";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { mapProductFromDb, mapProductToDb } from "@/lib/db-mappers";
+import { checkRateLimit, getClientId } from "@/lib/rate-limit";
 import type { Product, ProductType, ProductStatus } from "@/types";
 
 export async function GET(request: NextRequest) {
@@ -85,7 +86,8 @@ export async function GET(request: NextRequest) {
       data: products,
       total: products.length,
     });
-  } catch {
+  } catch (error) {
+    console.error("Error in products GET:", error instanceof Error ? error.message : String(error));
     return NextResponse.json(
       { success: false, error: "Internal server error" },
       { status: 500 }
@@ -95,6 +97,15 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    // Rate limit: 10 product creations per minute per IP
+    const clientId = getClientId(request);
+    const rateLimit = checkRateLimit(`products:${clientId}`, 10, 60 * 1000);
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { success: false, error: "Too many product creation attempts. Please try again later." },
+        { status: 429 }
+      );
+    }
     const body = await request.json();
     const {
       creatorId,
@@ -244,7 +255,8 @@ export async function POST(request: NextRequest) {
       success: true,
       data: product,
     });
-  } catch {
+  } catch (error) {
+    console.error("Error in products POST:", error instanceof Error ? error.message : String(error));
     return NextResponse.json(
       { success: false, error: "Internal server error" },
       { status: 500 }

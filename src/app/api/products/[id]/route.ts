@@ -53,7 +53,8 @@ export async function GET(
 
     const product = mapProductFromDb(productRow);
     return NextResponse.json({ success: true, data: product });
-  } catch {
+  } catch (error) {
+    console.error("Error in product GET:", error instanceof Error ? error.message : String(error));
     return NextResponse.json(
       { success: false, error: "Internal server error" },
       { status: 500 }
@@ -171,7 +172,8 @@ export async function PUT(
 
     const product = mapProductFromDb(updatedRow);
     return NextResponse.json({ success: true, data: product });
-  } catch {
+  } catch (error) {
+    console.error("Error in product PUT:", error instanceof Error ? error.message : String(error));
     return NextResponse.json(
       { success: false, error: "Internal server error" },
       { status: 500 }
@@ -258,7 +260,8 @@ export async function DELETE(
 
     const product = mapProductFromDb(updatedRow);
     return NextResponse.json({ success: true, data: product });
-  } catch {
+  } catch (error) {
+    console.error("Error in product DELETE:", error instanceof Error ? error.message : String(error));
     return NextResponse.json(
       { success: false, error: "Internal server error" },
       { status: 500 }

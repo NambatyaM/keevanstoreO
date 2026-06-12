@@ -14,6 +14,7 @@ import { MIN_WITHDRAWAL_AMOUNT } from "@/lib/constants";
 import { createServerSupabaseClient, createServiceRoleClient } from "@/lib/supabase/server";
 import { mapWithdrawalFromDb, mapWithdrawalToDb } from "@/lib/db-mappers";
 import { notifyWithdrawalRequest } from "@/lib/notifications";
+import { checkRateLimit, getClientId } from "@/lib/rate-limit";
 import type { Withdrawal, WithdrawalStatus } from "@/types";
 
 export async function GET(request: NextRequest) {
@@ -84,7 +85,8 @@ export async function GET(request: NextRequest) {
       data: withdrawals,
       total: withdrawals.length,
     });
-  } catch {
+  } catch (error) {
+    console.error("Error in withdrawals GET:", error instanceof Error ? error.message : String(error));
     return NextResponse.json(
       { success: false, error: "Internal server error" },
       { status: 500 }
@@ -94,6 +96,16 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    // Rate limit: 3 withdrawal requests per minute per IP
+    const clientId = getClientId(request);
+    const rateLimit = checkRateLimit(`withdrawals:${clientId}`, 3, 60 * 1000);
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { success: false, error: "Too many withdrawal requests. Please try again later." },
+        { status: 429 }
+      );
+    }
+
     const body = await request.json();
     const { creatorId, amount, method, phoneNumber, provider } = body;
 
@@ -159,7 +171,9 @@ export async function POST(request: NextRequest) {
         phoneNumber,
         provider,
         withdrawalId: withdrawal.id,
-      }).catch(() => {});
+      }).catch((err) => {
+        console.error("Failed to send withdrawal notification:", err instanceof Error ? err.message : String(err));
+      });
 
       return NextResponse.json({
         success: true,
@@ -250,14 +264,17 @@ export async function POST(request: NextRequest) {
         phoneNumber,
         provider,
         withdrawalId: withdrawal.id,
-      }).catch(() => {});
+      }).catch((err) => {
+        console.error("Failed to send withdrawal notification:", err instanceof Error ? err.message : String(err));
+      });
     }
 
     return NextResponse.json({
       success: true,
       data: withdrawal,
     });
-  } catch {
+  } catch (error) {
+    console.error("Error in withdrawals POST:", error instanceof Error ? error.message : String(error));
     return NextResponse.json(
       { success: false, error: "Internal server error" },
       { status: 500 }

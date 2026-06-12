@@ -11,9 +11,10 @@ import {
   mockCreators,
   mockOrders,
 } from "@/lib/mock-data";
-import { PLATFORM_FEE_PERCENT } from "@/lib/constants";
+import { PLATFORM_FEE_PERCENT, MIN_PRODUCT_PRICE } from "@/lib/constants";
 import { createServerSupabaseClient, createServiceRoleClient } from "@/lib/supabase/server";
 import { mapDonationFromDb } from "@/lib/db-mappers";
+import { checkRateLimit, getClientId } from "@/lib/rate-limit";
 import type { Donation, Order, OrderStatus, PaymentMethod } from "@/types";
 
 export async function GET(request: NextRequest) {
@@ -84,7 +85,8 @@ export async function GET(request: NextRequest) {
       data: donations,
       total: donations.length,
     });
-  } catch {
+  } catch (error) {
+    console.error("Error in donations GET:", error instanceof Error ? error.message : String(error));
     return NextResponse.json(
       { success: false, error: "Internal server error" },
       { status: 500 }
@@ -94,6 +96,16 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    // Rate limit: 5 donation attempts per minute per IP
+    const clientId = getClientId(request);
+    const rateLimit = checkRateLimit(`donations:${clientId}`, 5, 60 * 1000);
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { success: false, error: "Too many donation attempts. Please try again later." },
+        { status: 429 }
+      );
+    }
+
     const body = await request.json();
     const { creatorId, donorEmail, donorName, amount, message, anonymous } =
       body;
@@ -113,6 +125,14 @@ export async function POST(request: NextRequest) {
     if (typeof amount !== "number" || amount <= 0) {
       return NextResponse.json(
         { success: false, error: "Amount must be greater than 0" },
+        { status: 400 }
+      );
+    }
+
+    // Enforce minimum donation amount (UGX 1,000)
+    if (amount < MIN_PRODUCT_PRICE) {
+      return NextResponse.json(
+        { success: false, error: `Minimum donation amount is UGX ${MIN_PRODUCT_PRICE.toLocaleString()}` },
         { status: 400 }
       );
     }
@@ -281,23 +301,41 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Update creator balance, total_earnings, donation_current, and total_sales
-    const { data: currentCreator } = await serviceClient
-      .from("creators")
-      .select("balance, total_earnings, total_sales, donation_current")
-      .eq("id", creatorId)
-      .single();
+    // Atomically update creator balance, total_earnings, donation_current, and total_sales
+    // Using atomic SQL update to prevent race conditions with concurrent donations
+    const { error: updateError } = await serviceClient.rpc("process_donation", {
+      p_creator_id: creatorId,
+      p_amount: amount,
+      p_creator_earning: creatorEarning,
+    });
 
-    if (currentCreator) {
-      await serviceClient
-        .from("creators")
-        .update({
-          balance: Number(currentCreator.balance) + creatorEarning,
-          total_earnings: Number(currentCreator.total_earnings) + creatorEarning,
-          total_sales: Number(currentCreator.total_sales) + 1,
-          donation_current: Number(currentCreator.donation_current) + amount,
-        })
-        .eq("id", creatorId);
+    if (updateError) {
+      // Fallback: if RPC doesn't exist yet, try the atomic increment_creator_earnings RPC
+      console.error("RPC process_donation failed, trying fallback:", updateError.message);
+      const { error: fallbackError } = await serviceClient.rpc("increment_creator_earnings", {
+        p_creator_id: creatorId,
+        p_amount: creatorEarning,
+      });
+      if (fallbackError) {
+        console.error("All RPC fallbacks failed for donation balance update:", fallbackError.message);
+        // Last resort: read-then-write (not atomic but preserves existing balance)
+        const { data: currentCreator } = await serviceClient
+          .from("creators")
+          .select("balance, total_earnings, total_sales, donation_current")
+          .eq("id", creatorId)
+          .single();
+        if (currentCreator) {
+          await serviceClient
+            .from("creators")
+            .update({
+              balance: Number(currentCreator.balance) + creatorEarning,
+              total_earnings: Number(currentCreator.total_earnings) + creatorEarning,
+              total_sales: Number(currentCreator.total_sales) + 1,
+              donation_current: Number(currentCreator.donation_current) + amount,
+            })
+            .eq("id", creatorId);
+        }
+      }
     }
 
     const donation = mapDonationFromDb(donationRow);
@@ -306,7 +344,8 @@ export async function POST(request: NextRequest) {
       success: true,
       data: donation,
     });
-  } catch {
+  } catch (error) {
+    console.error("Error in donations POST:", error instanceof Error ? error.message : String(error));
     return NextResponse.json(
       { success: false, error: "Internal server error" },
       { status: 500 }
