@@ -3,7 +3,7 @@
 // GET /api/auth/login — Check session
 // ============================================================
 import { NextRequest, NextResponse } from "next/server";
-import { isUsingMockData, getMockCreatorById, mockCreators } from "@/lib/mock-data";
+import { isUsingMockData, getMockCreatorById, mockCreators, getMockPassword } from "@/lib/mock-data";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { mapCreatorFromDb } from "@/lib/db-mappers";
 
@@ -28,7 +28,14 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // In mock mode, any password works
+      // Check mock password
+      const expectedPassword = getMockPassword(creator.id);
+      if (password !== expectedPassword) {
+        return NextResponse.json(
+          { success: false, error: "Invalid email or password" },
+          { status: 401 }
+        );
+      }
       const response = NextResponse.json({
         success: true,
         data: creator,

@@ -92,6 +92,26 @@ const mockCreators: Creator[] = [
     createdAt: "2025-08-20T12:00:00Z",
     updatedAt: "2026-03-01T16:45:00Z",
   },
+  {
+    id: "creator-admin",
+    email: "nkevinmegan@gmail.com",
+    username: "keeva-admin",
+    displayName: "Keeva Admin",
+    bio: "Platform administrator and owner of Keevan Store.",
+    photoUrl: null,
+    bannerUrl: null,
+    socialLinks: [],
+    donationsEnabled: false,
+    donationGoal: null,
+    donationCurrent: 0,
+    balance: 0,
+    totalEarnings: 0,
+    totalSales: 0,
+    totalViews: 0,
+    isAdmin: true,
+    createdAt: "2025-01-01T00:00:00Z",
+    updatedAt: "2026-06-13T00:00:00Z",
+  },
 ];
 
 // ── Mock Products ──────────────────────────────────────────
@@ -657,6 +677,18 @@ export function getMockStorePublicData(username: string): StorePublicData | unde
 // Check if a username is available (not taken by mock creators)
 export function isMockUsernameAvailable(username: string): boolean {
   return !mockCreators.some((c) => c.username === username);
+}
+
+// ── Mock Passwords ─────────────────────────────────────────
+const mockPasswords: Record<string, string> = {
+  "creator-1": "sarah123",
+  "creator-2": "james123",
+  "creator-3": "nina123",
+  "creator-admin": "Keeva#44",
+};
+
+export function getMockPassword(creatorId: string): string {
+  return mockPasswords[creatorId] ?? "password123";
 }
 
 // ── Data Client Abstraction ────────────────────────────────
