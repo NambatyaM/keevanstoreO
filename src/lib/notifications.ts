@@ -1,62 +1,35 @@
 // ============================================================
 // WhatsApp Notification Utility
-// Sends admin notifications via WhatsApp for contact form
-// submissions and withdrawal requests
+// Admin notifications via WhatsApp direct message links
+// No third-party bot required — admin checks WhatsApp directly
 // ============================================================
 
 const ADMIN_WHATSAPP = process.env.ADMIN_WHATSAPP_NUMBER || "256768345905";
-const CALLMEBOT_APIKEY = process.env.CALLMEBOT_APIKEY || "";
 
 /**
- * Send a WhatsApp message to the admin using CallMeBot API.
+ * Log a WhatsApp notification for the admin.
  *
- * CallMeBot setup (one-time, takes 2 minutes):
- * 1. Open WhatsApp and send "I allow callmebot to send me messages" to +34 644 52 74 88
- * 2. You'll receive an API key back
- * 3. Add the API key to your .env as CALLMEBOT_APIKEY=your-key
+ * Since no automated WhatsApp bot is used, notifications are logged to console
+ * and stored in Supabase. The admin receives messages directly on WhatsApp
+ * from customers using the WhatsApp support links on the site.
  *
- * If CALLMEBOT_APIKEY is not set, notifications fall back to console.log only.
- * Messages are also always stored in Supabase regardless of WhatsApp delivery.
+ * For withdrawal and contact form notifications, the admin should check
+ * the admin dashboard at keevanstore.in/admin or their WhatsApp directly.
  */
 export async function sendWhatsAppNotification(message: string): Promise<boolean> {
-  // Log to console only in development
-  if (process.env.NODE_ENV === "development") {
-    console.log(`📱 WhatsApp notification → ${ADMIN_WHATSAPP}:`);
-    console.log(`   ${message.substring(0, 200)}${message.length > 200 ? "..." : ""}`);
-  }
+  // Always log the notification for admin visibility
+  console.log(`📱 Admin notification for WhatsApp ${ADMIN_WHATSAPP}:`);
+  console.log(`   ${message.substring(0, 300)}${message.length > 300 ? "..." : ""}`);
 
-  if (!CALLMEBOT_APIKEY) {
-    if (process.env.NODE_ENV === "development") {
-      console.log("   ⚠️ CALLMEBOT_APIKEY not set — WhatsApp notification skipped.");
-    }
-    return false;
-  }
+  // Generate a WhatsApp link the admin can use to follow up
+  const waLink = `https://wa.me/${ADMIN_WHATSAPP}?text=${encodeURIComponent(message.substring(0, 200))}`;
+  console.log(`   🔗 Follow-up link: ${waLink}`);
 
-  try {
-    const encodedMessage = encodeURIComponent(message);
-    const url = `https://api.callmebot.com/whatsapp.php?phone=${ADMIN_WHATSAPP}&text=${encodedMessage}&apikey=${CALLMEBOT_APIKEY}`;
-
-    const response = await fetch(url, {
-      method: "GET",
-      signal: AbortSignal.timeout(10000), // 10s timeout
-    });
-
-    if (response.ok) {
-      return true;
-    } else {
-      const text = await response.text().catch(() => "unknown error");
-      console.error(`WhatsApp notification failed: ${response.status} — ${text}`);
-      return false;
-    }
-  } catch (error) {
-    // Don't throw — notifications are non-critical. The data is still in Supabase.
-    console.error("   ❌ WhatsApp notification error:", error instanceof Error ? error.message : "unknown");
-    return false;
-  }
+  return true;
 }
 
 /**
- * Format and send a contact form notification via WhatsApp
+ * Format and log a contact form notification
  */
 export async function notifyContactForm(data: {
   name: string;
@@ -80,7 +53,7 @@ export async function notifyContactForm(data: {
 }
 
 /**
- * Format and send a withdrawal request notification via WhatsApp
+ * Format and log a withdrawal request notification
  */
 export async function notifyWithdrawalRequest(data: {
   creatorName: string;
@@ -112,7 +85,7 @@ export async function notifyWithdrawalRequest(data: {
 }
 
 /**
- * Format and send a new order notification via WhatsApp (optional — for high-value orders)
+ * Format and log a new order notification (optional — for high-value orders)
  */
 export async function notifyNewOrder(data: {
   buyerName: string;

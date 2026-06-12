@@ -126,13 +126,25 @@ export async function POST(request: NextRequest) {
 
         // For events: create a ticket record (RPC handles tickets_sold increment)
         if (productTypeData?.type === "event") {
-          await serviceClient.from("tickets").insert({
-            order_id: orderRow.id,
-            event_id: productId,
-            buyer_email: orderRow.buyer_email,
-            buyer_name: orderRow.buyer_name,
-            qr_code_data: `QR-${orderRow.id}`,
-          });
+          // Look up the events table row to get the correct event ID
+          // (productId points to the products table, but tickets.event_id references events.id)
+          const { data: eventData } = await serviceClient
+            .from("events")
+            .select("id")
+            .eq("product_id", productId)
+            .single();
+
+          if (eventData) {
+            await serviceClient.from("tickets").insert({
+              order_id: orderRow.id,
+              event_id: eventData.id,
+              buyer_email: orderRow.buyer_email,
+              buyer_name: orderRow.buyer_name,
+              qr_code_data: `QR-${orderRow.id}`,
+            });
+          } else {
+            console.error("Event not found for product ID:", productId, "— ticket not created");
+          }
         }
       }
 

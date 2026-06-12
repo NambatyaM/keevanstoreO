@@ -88,7 +88,7 @@ CREATE INDEX IF NOT EXISTS idx_events_date ON events(event_date);
 -- ── Orders Table ────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS orders (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  product_id UUID NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  product_id UUID REFERENCES products(id) ON DELETE CASCADE,
   creator_id UUID NOT NULL REFERENCES creators(id) ON DELETE CASCADE,
   buyer_email TEXT NOT NULL,
   buyer_name TEXT NOT NULL,
@@ -106,7 +106,7 @@ CREATE TABLE IF NOT EXISTS orders (
 );
 
 CREATE INDEX IF NOT EXISTS idx_orders_creator_id ON orders(creator_id);
-CREATE INDEX IF NOT EXISTS idx_orders_product_id ON orders(product_id);
+CREATE INDEX IF NOT EXISTS idx_orders_product_id ON orders(product_id) WHERE product_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status);
 CREATE INDEX IF NOT EXISTS idx_orders_created_at ON orders(created_at);
 CREATE INDEX IF NOT EXISTS idx_orders_pesapal_tracking ON orders(pesapal_order_tracking_id);

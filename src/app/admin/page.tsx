@@ -152,7 +152,8 @@ export default function AdminPage() {
   };
 
   // Get product name by ID
-  const getProductName = (productId: string) => {
+  const getProductName = (productId: string | null) => {
+    if (!productId) return "Donation";
     // Donation orders have a synthetic productId like "donation-don-xxx"
     if (productId.startsWith("donation-")) return "Donation";
     const product = mockProducts.find((p) => p.id === productId);
@@ -585,16 +586,16 @@ export default function AdminPage() {
                       <TableCell>
                         <Badge
                           variant={
-                            wd.status === "completed" || wd.status === "approved"
+                            wd.status === "paid"
                               ? "default"
+                              : wd.status === "approved"
+                              ? "outline"
                               : wd.status === "pending"
                               ? "secondary"
-                              : wd.status === "processing"
-                              ? "outline"
                               : "destructive"
                           }
                           className={
-                            wd.status === "completed" || wd.status === "approved"
+                            wd.status === "paid"
                               ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400"
                               : ""
                           }

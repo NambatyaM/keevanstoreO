@@ -91,10 +91,10 @@ describe('Auth Security — Mock Mode', () => {
   });
 
   it('Non-admin creators can log in with correct credentials', () => {
-    // Sarah
+    // Sarah (regular creator, not admin)
     const result1 = mockLogin('sarah@keevan.store', 'sarah123');
     expect(result1.success).toBe(true);
-    expect(result1.creator!.isAdmin).toBe(true); // Sarah is also admin
+    expect(result1.creator!.isAdmin).toBe(false);
 
     // James
     const result2 = mockLogin('james@keevan.store', 'james123');

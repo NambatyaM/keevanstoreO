@@ -23,8 +23,7 @@ export enum OrderStatus {
 export enum WithdrawalStatus {
   PENDING = "pending",
   APPROVED = "approved",
-  PROCESSING = "processing",
-  COMPLETED = "completed",
+  PAID = "paid",
   REJECTED = "rejected",
 }
 
@@ -101,7 +100,7 @@ export interface Event {
 export interface Order {
   id: string;
   creatorId: string;
-  productId: string;
+  productId: string | null;
   buyerEmail: string;
   buyerName: string;
   amount: number;

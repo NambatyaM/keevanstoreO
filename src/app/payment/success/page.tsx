@@ -70,26 +70,28 @@ function PaymentSuccessContent() {
         if (data.success && data.data) {
           setOrder(data.data);
 
-          // Fetch product details
-          const prodRes = await fetch(`/api/products/${data.data.productId}`);
-          const prodData = await prodRes.json();
-          if (prodData.success && prodData.data) {
-            setProduct(prodData.data);
+          // Fetch product details (donation orders may not have a productId)
+          if (data.data.productId) {
+            const prodRes = await fetch(`/api/products/${data.data.productId}`);
+            const prodData = await prodRes.json();
+            if (prodData.success && prodData.data) {
+              setProduct(prodData.data);
 
-            // If digital product, try to fetch download session info
-            if (prodData.data.type === "digital" && downloadTokenParam) {
-              const dlRes = await fetch(`/api/download/${downloadTokenParam}`);
-              const dlData = await dlRes.json();
-              if (dlData.success && dlData.data) {
-                setDownloadSession(dlData.data);
+              // If digital product, try to fetch download session info
+              if (prodData.data.type === "digital" && downloadTokenParam) {
+                const dlRes = await fetch(`/api/download/${downloadTokenParam}`);
+                const dlData = await dlRes.json();
+                if (dlData.success && dlData.data) {
+                  setDownloadSession(dlData.data);
+                }
               }
-            }
 
-            // Fetch creator details
-            const storeRes = await fetch(`/api/store?creator_id=${data.data.creatorId}`);
-            const storeData = await storeRes.json();
-            if (storeData.success && storeData.data) {
-              setCreator(storeData.data.creator || storeData.data);
+              // Fetch creator details
+              const storeRes = await fetch(`/api/store?creator_id=${data.data.creatorId}`);
+              const storeData = await storeRes.json();
+              if (storeData.success && storeData.data) {
+                setCreator(storeData.data.creator || storeData.data);
+              }
             }
           }
         }

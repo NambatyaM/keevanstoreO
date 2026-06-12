@@ -38,8 +38,7 @@ export const PAYMENT_METHOD_LABELS: Record<string, string> = {
 export const WITHDRAWAL_STATUS_LABELS: Record<string, string> = {
   pending: "Pending",
   approved: "Approved",
-  processing: "Processing",
-  completed: "Completed",
+  paid: "Paid",
   rejected: "Rejected",
 };
 

@@ -10,7 +10,7 @@ import { Card, CardContent } from "@/components/ui/card";
 
 // ── WhatsApp URL Constants ─────────────────────────────────
 const WHATSAPP_PHONE = "256768345905";
-const WHATSAPP_DISPLAY = "+256 768 345 905";
+export const WHATSAPP_DISPLAY = "+256 768 345 905";
 
 export const WHATSAPP_URLS = {
   general: `https://wa.me/${WHATSAPP_PHONE}?text=Hello%20Keevan%20Store,%20I%20need%20assistance.`,

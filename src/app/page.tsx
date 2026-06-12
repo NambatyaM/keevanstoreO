@@ -24,6 +24,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { SiteFooter } from "@/components/shared/site-footer";
 import { FloatingWhatsAppButton, WhatsAppSupportCard } from "@/components/shared/whatsapp-support";
 import { MessageCircle } from "lucide-react";
+import { sanitizeForJsonLd } from "@/lib/utils";
 
 const features = [
   {
@@ -134,7 +135,7 @@ export default function LandingPage() {
       {/* JSON-LD Structured Data */}
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
+        dangerouslySetInnerHTML={{ __html: sanitizeForJsonLd(JSON.stringify(faqSchema)) }}
       />
 
       {/* Header */}

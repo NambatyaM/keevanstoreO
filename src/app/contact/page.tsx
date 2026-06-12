@@ -22,9 +22,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { SiteFooter } from "@/components/shared/site-footer";
-import { WhatsAppSupportCard, WHATSAPP_URLS, FloatingWhatsAppButton } from "@/components/shared/whatsapp-support";
-
-const WHATSAPP_DISPLAY = "+256 768 345 905";
+import { WhatsAppSupportCard, WHATSAPP_URLS, FloatingWhatsAppButton, WHATSAPP_DISPLAY } from "@/components/shared/whatsapp-support";
 
 export default function ContactPage() {
   const [formData, setFormData] = useState({

@@ -199,8 +199,7 @@ describe('Schema Validation — Constants Match Types & Constraints', () => {
     it('WITHDRAWAL_STATUS_LABELS has all required statuses', () => {
       expect(WITHDRAWAL_STATUS_LABELS).toHaveProperty('pending');
       expect(WITHDRAWAL_STATUS_LABELS).toHaveProperty('approved');
-      expect(WITHDRAWAL_STATUS_LABELS).toHaveProperty('processing');
-      expect(WITHDRAWAL_STATUS_LABELS).toHaveProperty('completed');
+      expect(WITHDRAWAL_STATUS_LABELS).toHaveProperty('paid');
       expect(WITHDRAWAL_STATUS_LABELS).toHaveProperty('rejected');
     });
 
@@ -213,8 +212,8 @@ describe('Schema Validation — Constants Match Types & Constraints', () => {
       }
     });
 
-    it('Five withdrawal statuses exist', () => {
-      expect(Object.keys(WITHDRAWAL_STATUS_LABELS).length).toBe(5);
+    it('Four withdrawal statuses exist', () => {
+      expect(Object.keys(WITHDRAWAL_STATUS_LABELS).length).toBe(4);
     });
   });
 

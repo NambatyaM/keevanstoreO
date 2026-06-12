@@ -4,9 +4,7 @@
 // ============================================================
 import Link from "next/link";
 import { MessageCircle } from "lucide-react";
-import { WHATSAPP_URLS } from "@/components/shared/whatsapp-support";
-
-const WHATSAPP_DISPLAY = "+256 768 345 905";
+import { WHATSAPP_URLS, WHATSAPP_DISPLAY } from "@/components/shared/whatsapp-support";
 
 interface SiteFooterProps {
   /** Variant for different page contexts */

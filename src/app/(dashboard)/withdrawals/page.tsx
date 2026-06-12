@@ -11,7 +11,6 @@ import {
   CheckCircle2,
   XCircle,
   Loader2,
-  ArrowUpRight,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -42,12 +41,12 @@ import type { Withdrawal, WithdrawalStatus } from "@/types";
 
 function getStatusIcon(status: WithdrawalStatus) {
   switch (status) {
-    case "completed":
+    case "paid":
       return <CheckCircle2 className="h-4 w-4 text-emerald-500" />;
+    case "approved":
+      return <CheckCircle2 className="h-4 w-4 text-blue-500" />;
     case "pending":
       return <Clock className="h-4 w-4 text-amber-500" />;
-    case "processing":
-      return <Loader2 className="h-4 w-4 text-blue-500 animate-spin" />;
     case "rejected":
       return <XCircle className="h-4 w-4 text-destructive" />;
     default:
@@ -281,11 +280,11 @@ export default function WithdrawalsPage() {
                   <div className="text-right">
                     <Badge
                       variant={
-                        wd.status === "completed"
+                        wd.status === "paid"
                           ? "default"
                           : wd.status === "pending"
                           ? "secondary"
-                          : wd.status === "processing"
+                          : wd.status === "approved"
                           ? "outline"
                           : "destructive"
                       }
