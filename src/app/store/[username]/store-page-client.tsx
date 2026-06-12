@@ -8,6 +8,7 @@ import { DonationWidget } from "@/components/store/donation-widget";
 import { Package, ChevronRight } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { SiteFooter } from "@/components/shared/site-footer";
 import type { Creator, Product } from "@/types";
 
 interface StorePageClientProps {
@@ -133,17 +134,7 @@ export function StorePageClient({ creator, products, username }: StorePageClient
         </div>
       </div>
 
-      {/* Footer */}
-      <footer className="border-t mt-auto">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4 text-center">
-          <p className="text-xs text-muted-foreground">
-            Powered by{" "}
-            <a href="/" className="text-emerald-600 hover:text-emerald-700 font-medium">
-              Keevan Store
-            </a>
-          </p>
-        </div>
-      </footer>
+      <SiteFooter variant="store" creatorName={creator.displayName} username={username} />
     </div>
   );
 }

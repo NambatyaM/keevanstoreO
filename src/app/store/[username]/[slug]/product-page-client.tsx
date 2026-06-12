@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/select";
 import { CurrencyDisplay, formatCurrency } from "@/components/shared/currency-display";
 import { CopyButton } from "@/components/shared/copy-button";
+import { SiteFooter } from "@/components/shared/site-footer";
 import { PRODUCT_TYPE_LABELS } from "@/lib/constants";
 import type { Creator, Product, PaymentMethod } from "@/types";
 import { format } from "date-fns";
@@ -271,21 +272,7 @@ export function ProductPageClient({ creator, product, username, slug }: ProductP
         </div>
       </div>
 
-      {/* Footer */}
-      <footer className="border-t mt-auto">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4 text-center">
-          <p className="text-xs text-muted-foreground">
-            Powered by{" "}
-            <a href="/" className="text-emerald-600 hover:text-emerald-700 font-medium">
-              Keevan Store
-            </a>
-            {" — "}
-            <a href={`/store/${username}`} className="text-emerald-600 hover:text-emerald-700 font-medium">
-              Visit {creator.displayName}&apos;s store
-            </a>
-          </p>
-        </div>
-      </footer>
+      <SiteFooter variant="store" creatorName={creator.displayName} username={username} />
 
       {/* Checkout Dialog */}
       <Dialog open={showCheckout} onOpenChange={setShowCheckout}>

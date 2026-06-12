@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { SiteFooter } from "@/components/shared/site-footer";
 
 export const metadata: Metadata = {
   title: "About Keevan Store — How It Works | Sell Digital Products & Event Tickets in Uganda",
@@ -511,24 +512,7 @@ export default function AboutPage() {
           </section>
         </main>
 
-        {/* Footer */}
-        <footer className="border-t py-8 mt-auto">
-          <div className="max-w-6xl mx-auto px-4 sm:px-6">
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div className="flex items-center gap-2">
-                <div className="h-6 w-6 rounded-md bg-emerald-500 flex items-center justify-center">
-                  <span className="text-white font-bold text-xs">K</span>
-                </div>
-                <span className="text-sm font-medium text-foreground">
-                  Keevan Store
-                </span>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                &copy; {new Date().getFullYear()} Keevan Store. All rights reserved.
-              </p>
-            </div>
-          </div>
-        </footer>
+        <SiteFooter />
       </div>
     </>
   );

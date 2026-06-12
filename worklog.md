@@ -34,3 +34,30 @@ Stage Summary:
 - OG/Twitter metadata on all public pages with canonical URLs
 - Both user journeys mapped with clear next-action CTAs and no dead ends
 - Empty states guide action (add product, share link, withdraw earnings)
+---
+Task ID: trust-pages
+Agent: Main Agent
+Task: Add Privacy Policy, Terms and Conditions, and Contact Us trust pages for Google trust
+
+Work Log:
+- Explored project structure to understand existing footer implementations across 4 different pages
+- Created shared SiteFooter component (src/components/shared/site-footer.tsx) with "default" and "store" variants
+- Default variant includes brand logo, navigation links (About, Privacy Policy, Terms & Conditions, Contact Us), copyright, and payment notice
+- Store variant includes "Powered by Keevan Store" branding, creator store link, and legal navigation links
+- Created Privacy Policy page (src/app/privacy/page.tsx) with 13 comprehensive sections covering data collection, cookies, Google advertising cookies, third-party ad networks, data security, retention, user rights, children's privacy, international transfers, and contact info
+- Created Terms and Conditions page (src/app/terms/page.tsx) with 14 comprehensive sections covering account registration, creator obligations, buyer obligations, pricing/fees, intellectual property, limitation of liability, indemnification, account suspension, refund policy, dispute resolution, force majeure, and contact info
+- Created Contact Us page (src/app/contact/page.tsx) with contact form, 3 contact method cards (Email, Privacy/Legal, Business Location), response time sidebar, FAQ section, and payment issue tips
+- Created Contact page layout (src/app/contact/layout.tsx) with SEO metadata for the client component
+- Updated all 4 existing inline footers to use shared SiteFooter component (landing, about, store, product pages)
+- Updated sitemap.ts to include /privacy, /terms, and /contact with priority 0.5 and yearly changeFrequency
+- Updated root layout Organization schema to include contactPoint with customer service email
+- All pages include full SEO metadata (title, description, keywords, OG tags, Twitter cards, canonical URLs)
+- Build verified successfully with all new routes rendering
+
+Stage Summary:
+- 5 new files created: site-footer.tsx, privacy/page.tsx, terms/page.tsx, contact/page.tsx, contact/layout.tsx
+- 5 files modified: page.tsx (landing), about/page.tsx, store-page-client.tsx, product-page-client.tsx, sitemap.ts, layout.tsx
+- All 3 trust pages now accessible at /privacy, /terms, /contact
+- Shared footer component ensures consistent trust links across all public pages
+- Privacy Policy includes detailed Google advertising cookie and third-party ad network disclosure
+- Contact Us includes contact form, email addresses, business location, and FAQ section

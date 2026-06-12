@@ -90,6 +90,16 @@ const organizationSchema = {
     "@type": "Country",
     name: "Uganda",
   },
+  contactPoint: {
+    "@type": "ContactPoint",
+    contactType: "customer service",
+    email: "support@keevanstore.in",
+    availableLanguage: ["English"],
+    areaServed: {
+      "@type": "Country",
+      name: "Uganda",
+    },
+  },
   sameAs: [],
 };
 
