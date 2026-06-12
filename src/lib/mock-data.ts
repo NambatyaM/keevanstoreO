@@ -719,6 +719,10 @@ export function getMockPassword(creatorId: string): string {
   return mockPasswords[creatorId] ?? "password123";
 }
 
+export function setMockPassword(creatorId: string, password: string): void {
+  mockPasswords[creatorId] = password;
+}
+
 // ── Data Client Abstraction ────────────────────────────────
 // Returns mock data when Supabase is not configured
 
@@ -727,4 +731,4 @@ export function isUsingMockData(): boolean {
   return !url || url === "mock" || url === "";
 }
 
-export { mockCreators, mockProducts, mockOrders, mockDonations, mockWithdrawals, mockTickets, mockDownloadSessions, mockPageViews };
+export { mockCreators, mockProducts, mockOrders, mockDonations, mockWithdrawals, mockTickets, mockDownloadSessions, mockPageViews, mockPasswords };

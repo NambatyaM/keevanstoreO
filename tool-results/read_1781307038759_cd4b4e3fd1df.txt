@@ -1,0 +1,721 @@
+     1→// ============================================================
+     2→// Admin Dashboard Page — Enhanced with Tabs
+     3→// ============================================================
+     4→"use client";
+     5→
+     6→import { useEffect, useState, useCallback } from "react";
+     7→import Link from "next/link";
+     8→import {
+     9→  Users,
+    10→  Package,
+    11→  DollarSign,
+    12→  TrendingUp,
+    13→  ArrowLeft,
+    14→  Check,
+    15→  X,
+    16→  Shield,
+    17→  Loader2,
+    18→} from "lucide-react";
+    19→import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+    20→import { Button } from "@/components/ui/button";
+    21→import { Badge } from "@/components/ui/badge";
+    22→import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+    23→import {
+    24→  Table,
+    25→  TableBody,
+    26→  TableCell,
+    27→  TableHead,
+    28→  TableHeader,
+    29→  TableRow,
+    30→} from "@/components/ui/table";
+    31→import { CurrencyDisplay, formatCurrency } from "@/components/shared/currency-display";
+    32→import { mockCreators, mockProducts, mockOrders, mockWithdrawals, mockDonations } from "@/lib/mock-data";
+    33→import { ORDER_STATUS_LABELS, WITHDRAWAL_STATUS_LABELS, PAYMENT_METHOD_LABELS } from "@/lib/constants";
+    34→import { toast } from "sonner";
+    35→import type { Order, WithdrawalStatus } from "@/types";
+    36→
+    37→// Track admin state locally
+    38→interface CreatorAdminState {
+    39→  active: boolean;
+    40→  verified: boolean;
+    41→}
+    42→
+    43→const creatorAdminStates: Record<string, CreatorAdminState> = {};
+    44→mockCreators.forEach((c) => {
+    45→  creatorAdminStates[c.id] = { active: true, verified: false };
+    46→});
+    47→
+    48→export default function AdminPage() {
+    49→  const [orderFilter, setOrderFilter] = useState<string>("all");
+    50→  const [withdrawals, setWithdrawals] = useState(mockWithdrawals.map(w => ({ ...w })));
+    51→  const [creatorStates, setCreatorStates] = useState<Record<string, CreatorAdminState>>({ ...creatorAdminStates });
+    52→  const [actionLoading, setActionLoading] = useState<string | null>(null);
+    53→
+    54→  const totalRevenue = mockOrders
+    55→    .filter((o) => o.status === "completed")
+    56→    .reduce((sum, o) => sum + o.amount, 0);
+    57→
+    58→  const totalFees = mockOrders
+    59→    .filter((o) => o.status === "completed")
+    60→    .reduce((sum, o) => sum + o.platformFee, 0);
+    61→
+    62→  // Filter orders by status
+    63→  const filteredOrders =
+    64→    orderFilter === "all"
+    65→      ? mockOrders
+    66→      : mockOrders.filter((o) => o.status === orderFilter);
+    67→
+    68→  // Handle creator toggle
+    69→  const handleCreatorAction = useCallback(
+    70→    async (creatorId: string, action: string) => {
+    71→      setActionLoading(`${creatorId}-${action}`);
+    72→      try {
+    73→        const res = await fetch("/api/admin/creators", {
+    74→          method: "PATCH",
+    75→          headers: { "Content-Type": "application/json" },
+    76→          body: JSON.stringify({ creatorId, action }),
+    77→        });
+    78→        const data = await res.json();
+    79→        if (data.success) {
+    80→          setCreatorStates((prev) => ({
+    81→            ...prev,
+    82→            [creatorId]: {
+    83→              active:
+    84→                action === "activate"
+    85→                  ? true
+    86→                  : action === "deactivate"
+    87→                  ? false
+    88→                  : prev[creatorId]?.active ?? true,
+    89→              verified:
+    90→                action === "verify"
+    91→                  ? true
+    92→                  : action === "unverify"
+    93→                  ? false
+    94→                  : prev[creatorId]?.verified ?? false,
+    95→            },
+    96→          }));
+    97→          toast.success(`Creator ${action}d successfully`);
+    98→        } else {
+    99→          toast.error(data.error || "Action failed");
+   100→        }
+   101→      } catch {
+   102→        toast.error("Failed to update creator");
+   103→      } finally {
+   104→        setActionLoading(null);
+   105→      }
+   106→    },
+   107→    []
+   108→  );
+   109→
+   110→  // Handle withdrawal approve/reject
+   111→  const handleWithdrawalAction = useCallback(
+   112→    async (withdrawalId: string, action: "approve" | "reject") => {
+   113→      setActionLoading(`${withdrawalId}-${action}`);
+   114→      try {
+   115→        const res = await fetch("/api/admin/withdrawals", {
+   116→          method: "PATCH",
+   117→          headers: { "Content-Type": "application/json" },
+   118→          body: JSON.stringify({ withdrawalId, action }),
+   119→        });
+   120→        const data = await res.json();
+   121→        if (data.success) {
+   122→          setWithdrawals((prev) =>
+   123→            prev.map((w) =>
+   124→              w.id === withdrawalId
+   125→                ? {
+   126→                    ...w,
+   127→                    status: (action === "approve" ? "approved" : "rejected") as import("@/types").WithdrawalStatus,
+   128→                    processedAt: new Date().toISOString(),
+   129→                  }
+   130→                : w
+   131→            )
+   132→          );
+   133→          toast.success(
+   134→            `Withdrawal ${action === "approve" ? "approved" : "rejected"} successfully`
+   135→          );
+   136→        } else {
+   137→          toast.error(data.error || "Action failed");
+   138→        }
+   139→      } catch {
+   140→        toast.error("Failed to update withdrawal");
+   141→      } finally {
+   142→        setActionLoading(null);
+   143→      }
+   144→    },
+   145→    []
+   146→  );
+   147→
+   148→  // Get creator name by ID
+   149→  const getCreatorName = (creatorId: string) => {
+   150→    const creator = mockCreators.find((c) => c.id === creatorId);
+   151→    return creator?.displayName || "Unknown";
+   152→  };
+   153→
+   154→  // Get product name by ID
+   155→  const getProductName = (productId: string) => {
+   156→    // Donation orders have a synthetic productId like "donation-don-xxx"
+   157→    if (productId.startsWith("donation-")) return "Donation";
+   158→    const product = mockProducts.find((p) => p.id === productId);
+   159→    return product?.title || productId;
+   160→  };
+   161→
+   162→  return (
+   163→    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
+   164→      {/* Header */}
+   165→      <div className="flex items-center gap-3 mb-8">
+   166→        <Button variant="ghost" size="icon" asChild>
+   167→          <Link href="/dashboard">
+   168→            <ArrowLeft className="h-4 w-4" />
+   169→          </Link>
+   170→        </Button>
+   171→        <div>
+   172→          <h1 className="text-2xl font-bold">Admin Dashboard</h1>
+   173→          <p className="text-sm text-muted-foreground">
+   174→            Platform overview and management
+   175→          </p>
+   176→        </div>
+   177→      </div>
+   178→
+   179→      {/* Tabs */}
+   180→      <Tabs defaultValue="overview">
+   181→        <TabsList className="mb-6">
+   182→          <TabsTrigger value="overview">Overview</TabsTrigger>
+   183→          <TabsTrigger value="creators">Creators</TabsTrigger>
+   184→          <TabsTrigger value="withdrawals">Withdrawals</TabsTrigger>
+   185→          <TabsTrigger value="orders">Orders</TabsTrigger>
+   186→        </TabsList>
+   187→
+   188→        {/* ── Overview Tab ── */}
+   189→        <TabsContent value="overview">
+   190→          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+   191→            <Card>
+   192→              <CardContent className="p-4">
+   193→                <div className="flex items-center gap-2">
+   194→                  <Users className="h-4 w-4 text-emerald-600" />
+   195→                  <p className="text-xs text-muted-foreground">Creators</p>
+   196→                </div>
+   197→                <p className="text-2xl font-bold mt-2">
+   198→                  {mockCreators.length}
+   199→                </p>
+   200→              </CardContent>
+   201→            </Card>
+   202→            <Card>
+   203→              <CardContent className="p-4">
+   204→                <div className="flex items-center gap-2">
+   205→                  <Package className="h-4 w-4 text-blue-600" />
+   206→                  <p className="text-xs text-muted-foreground">Products</p>
+   207→                </div>
+   208→                <p className="text-2xl font-bold mt-2">
+   209→                  {mockProducts.length}
+   210→                </p>
+   211→              </CardContent>
+   212→            </Card>
+   213→            <Card>
+   214→              <CardContent className="p-4">
+   215→                <div className="flex items-center gap-2">
+   216→                  <DollarSign className="h-4 w-4 text-amber-600" />
+   217→                  <p className="text-xs text-muted-foreground">Total GMV</p>
+   218→                </div>
+   219→                <p className="text-2xl font-bold mt-2">
+   220→                  {formatCurrency(totalRevenue)}
+   221→                </p>
+   222→              </CardContent>
+   223→            </Card>
+   224→            <Card>
+   225→              <CardContent className="p-4">
+   226→                <div className="flex items-center gap-2">
+   227→                  <TrendingUp className="h-4 w-4 text-purple-600" />
+   228→                  <p className="text-xs text-muted-foreground">
+   229→                    Platform Fees
+   230→                  </p>
+   231→                </div>
+   232→                <p className="text-2xl font-bold mt-2">
+   233→                  {formatCurrency(totalFees)}
+   234→                </p>
+   235→              </CardContent>
+   236→            </Card>
+   237→          </div>
+   238→
+   239→          {/* Quick Stats */}
+   240→          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+   241→            <Card>
+   242→              <CardHeader>
+   243→                <CardTitle className="text-base">
+   244→                  Top Creators by Revenue
+   245→                </CardTitle>
+   246→              </CardHeader>
+   247→              <CardContent>
+   248→                <div className="space-y-3">
+   249→                  {[...mockCreators]
+   250→                    .sort(
+   251→                      (a, b) => b.totalEarnings - a.totalEarnings
+   252→                    )
+   253→                    .map((creator) => (
+   254→                      <div
+   255→                        key={creator.id}
+   256→                        className="flex items-center justify-between py-2 border-b last:border-0"
+   257→                      >
+   258→                        <div>
+   259→                          <p className="text-sm font-medium">
+   260→                            {creator.displayName}
+   261→                          </p>
+   262→                          <p className="text-xs text-muted-foreground">
+   263→                            @{creator.username}
+   264→                          </p>
+   265→                        </div>
+   266→                        <div className="text-right">
+   267→                          <p className="text-sm font-medium">
+   268→                            {formatCurrency(creator.totalEarnings)}
+   269→                          </p>
+   270→                          <p className="text-xs text-muted-foreground">
+   271→                            {creator.totalSales} sales
+   272→                          </p>
+   273→                        </div>
+   274→                      </div>
+   275→                    ))}
+   276→                </div>
+   277→              </CardContent>
+   278→            </Card>
+   279→
+   280→            <Card>
+   281→              <CardHeader>
+   282→                <CardTitle className="text-base">Recent Activity</CardTitle>
+   283→              </CardHeader>
+   284→              <CardContent>
+   285→                <div className="space-y-3">
+   286→                  {mockOrders.slice(0, 5).map((order) => (
+   287→                    <div
+   288→                      key={order.id}
+   289→                      className="flex items-center justify-between py-2 border-b last:border-0"
+   290→                    >
+   291→                      <div>
+   292→                        <p className="text-sm font-medium">
+   293→                          {order.buyerName}
+   294→                        </p>
+   295→                        <p className="text-xs text-muted-foreground">
+   296→                          {getProductName(order.productId)}
+   297→                        </p>
+   298→                      </div>
+   299→                      <div className="text-right flex items-center gap-2">
+   300→                        <div>
+   301→                          <p className="text-sm font-medium">
+   302→                            {formatCurrency(order.amount)}
+   303→                          </p>
+   304→                        </div>
+   305→                        <Badge
+   306→                          variant={
+   307→                            order.status === "completed"
+   308→                              ? "default"
+   309→                              : order.status === "pending"
+   310→                              ? "secondary"
+   311→                              : "destructive"
+   312→                          }
+   313→                          className="text-[10px]"
+   314→                        >
+   315→                          {order.status}
+   316→                        </Badge>
+   317→                      </div>
+   318→                    </div>
+   319→                  ))}
+   320→                </div>
+   321→              </CardContent>
+   322→            </Card>
+   323→          </div>
+   324→        </TabsContent>
+   325→
+   326→        {/* ── Creators Tab ── */}
+   327→        <TabsContent value="creators">
+   328→          <Card>
+   329→            <CardHeader>
+   330→              <CardTitle className="text-base">All Creators</CardTitle>
+   331→            </CardHeader>
+   332→            <CardContent>
+   333→              <Table>
+   334→                <TableHeader>
+   335→                  <TableRow>
+   336→                    <TableHead>Name</TableHead>
+   337→                    <TableHead className="hidden sm:table-cell">
+   338→                      Username
+   339→                    </TableHead>
+   340→                    <TableHead className="hidden md:table-cell">
+   341→                      Email
+   342→                    </TableHead>
+   343→                    <TableHead className="text-right">Earnings</TableHead>
+   344→                    <TableHead className="text-right hidden sm:table-cell">
+   345→                      Sales
+   346→                    </TableHead>
+   347→                    <TableHead className="text-center">Status</TableHead>
+   348→                    <TableHead className="text-center">Verified</TableHead>
+   349→                    <TableHead className="text-right">Actions</TableHead>
+   350→                  </TableRow>
+   351→                </TableHeader>
+   352→                <TableBody>
+   353→                  {mockCreators.map((creator) => {
+   354→                    const state = creatorStates[creator.id];
+   355→                    const isActive = state?.active ?? true;
+   356→                    const isVerified = state?.verified ?? false;
+   357→
+   358→                    return (
+   359→                      <TableRow key={creator.id}>
+   360→                        <TableCell className="font-medium">
+   361→                          {creator.displayName}
+   362→                        </TableCell>
+   363→                        <TableCell className="hidden sm:table-cell">
+   364→                          @{creator.username}
+   365→                        </TableCell>
+   366→                        <TableCell className="hidden md:table-cell text-muted-foreground">
+   367→                          {creator.email}
+   368→                        </TableCell>
+   369→                        <TableCell className="text-right">
+   370→                          {formatCurrency(creator.totalEarnings)}
+   371→                        </TableCell>
+   372→                        <TableCell className="text-right hidden sm:table-cell">
+   373→                          {creator.totalSales}
+   374→                        </TableCell>
+   375→                        <TableCell className="text-center">
+   376→                          <Badge
+   377→                            variant={isActive ? "default" : "secondary"}
+   378→                            className={
+   379→                              isActive
+   380→                                ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400"
+   381→                                : ""
+   382→                            }
+   383→                          >
+   384→                            {isActive ? "Active" : "Inactive"}
+   385→                          </Badge>
+   386→                        </TableCell>
+   387→                        <TableCell className="text-center">
+   388→                          {isVerified ? (
+   389→                            <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-950/30 dark:text-blue-400 gap-1">
+   390→                              <Shield className="h-3 w-3" />
+   391→                              Verified
+   392→                            </Badge>
+   393→                          ) : (
+   394→                            <Badge variant="outline" className="text-muted-foreground">
+   395→                              Unverified
+   396→                            </Badge>
+   397→                          )}
+   398→                        </TableCell>
+   399→                        <TableCell className="text-right">
+   400→                          <div className="flex items-center justify-end gap-1">
+   401→                            <Button
+   402→                              variant="outline"
+   403→                              size="sm"
+   404→                              className="h-7 text-xs"
+   405→                              onClick={() =>
+   406→                                handleCreatorAction(
+   407→                                  creator.id,
+   408→                                  isActive ? "deactivate" : "activate"
+   409→                                )
+   410→                              }
+   411→                              disabled={actionLoading === `${creator.id}-${isActive ? "deactivate" : "activate"}`}
+   412→                            >
+   413→                              {actionLoading === `${creator.id}-${isActive ? "deactivate" : "activate"}` ? (
+   414→                                <Loader2 className="h-3 w-3 animate-spin" />
+   415→                              ) : isActive ? (
+   416→                                "Deactivate"
+   417→                              ) : (
+   418→                                "Activate"
+   419→                              )}
+   420→                            </Button>
+   421→                            <Button
+   422→                              variant="outline"
+   423→                              size="sm"
+   424→                              className="h-7 text-xs"
+   425→                              onClick={() =>
+   426→                                handleCreatorAction(
+   427→                                  creator.id,
+   428→                                  isVerified ? "unverify" : "verify"
+   429→                                )
+   430→                              }
+   431→                              disabled={actionLoading === `${creator.id}-${isVerified ? "unverify" : "verify"}`}
+   432→                            >
+   433→                              {actionLoading === `${creator.id}-${isVerified ? "unverify" : "verify"}` ? (
+   434→                                <Loader2 className="h-3 w-3 animate-spin" />
+   435→                              ) : isVerified ? (
+   436→                                "Unverify"
+   437→                              ) : (
+   438→                                "Verify"
+   439→                              )}
+   440→                            </Button>
+   441→                          </div>
+   442→                        </TableCell>
+   443→                      </TableRow>
+   444→                    );
+   445→                  })}
+   446→                </TableBody>
+   447→              </Table>
+   448→            </CardContent>
+   449→          </Card>
+   450→        </TabsContent>
+   451→
+   452→        {/* ── Withdrawals Tab ── */}
+   453→        <TabsContent value="withdrawals">
+   454→          <Card>
+   455→            <CardHeader>
+   456→              <CardTitle className="text-base">
+   457→                Pending Withdrawals
+   458→              </CardTitle>
+   459→            </CardHeader>
+   460→            <CardContent>
+   461→              {withdrawals.filter((w) => w.status === "pending").length > 0 ? (
+   462→                <Table>
+   463→                  <TableHeader>
+   464→                    <TableRow>
+   465→                      <TableHead>Creator</TableHead>
+   466→                      <TableHead className="text-right">Amount</TableHead>
+   467→                      <TableHead className="hidden sm:table-cell">
+   468→                        Method
+   469→                      </TableHead>
+   470→                      <TableHead className="hidden md:table-cell">
+   471→                        Phone
+   472→                      </TableHead>
+   473→                      <TableHead className="hidden sm:table-cell">
+   474→                        Requested
+   475→                      </TableHead>
+   476→                      <TableHead className="text-right">Actions</TableHead>
+   477→                    </TableRow>
+   478→                  </TableHeader>
+   479→                  <TableBody>
+   480→                    {withdrawals
+   481→                      .filter((w) => w.status === "pending")
+   482→                      .map((wd) => (
+   483→                        <TableRow key={wd.id}>
+   484→                          <TableCell className="font-medium">
+   485→                            {getCreatorName(wd.creatorId)}
+   486→                          </TableCell>
+   487→                          <TableCell className="text-right font-medium">
+   488→                            {formatCurrency(wd.amount)}
+   489→                          </TableCell>
+   490→                          <TableCell className="hidden sm:table-cell text-muted-foreground">
+   491→                            {wd.provider}
+   492→                          </TableCell>
+   493→                          <TableCell className="hidden md:table-cell text-muted-foreground">
+   494→                            {wd.phoneNumber}
+   495→                          </TableCell>
+   496→                          <TableCell className="hidden sm:table-cell text-muted-foreground text-xs">
+   497→                            {new Date(wd.createdAt).toLocaleDateString()}
+   498→                          </TableCell>
+   499→                          <TableCell className="text-right">
+   500→                            <div className="flex items-center justify-end gap-1">
+   501→                              <Button
+   502→                                variant="outline"
+   503→                                size="sm"
+   504→                                className="h-7 text-xs border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-400 dark:hover:bg-emerald-950/30"
+   505→                                onClick={() =>
+   506→                                  handleWithdrawalAction(wd.id, "approve")
+   507→                                }
+   508→                                disabled={actionLoading === `${wd.id}-approve`}
+   509→                              >
+   510→                                {actionLoading === `${wd.id}-approve` ? (
+   511→                                  <Loader2 className="h-3 w-3 animate-spin" />
+   512→                                ) : (
+   513→                                  <>
+   514→                                    <Check className="h-3 w-3 mr-1" />
+   515→                                    Approve
+   516→                                  </>
+   517→                                )}
+   518→                              </Button>
+   519→                              <Button
+   520→                                variant="outline"
+   521→                                size="sm"
+   522→                                className="h-7 text-xs border-destructive/30 text-destructive hover:bg-destructive/10"
+   523→                                onClick={() =>
+   524→                                  handleWithdrawalAction(wd.id, "reject")
+   525→                                }
+   526→                                disabled={actionLoading === `${wd.id}-reject`}
+   527→                              >
+   528→                                {actionLoading === `${wd.id}-reject` ? (
+   529→                                  <Loader2 className="h-3 w-3 animate-spin" />
+   530→                                ) : (
+   531→                                  <>
+   532→                                    <X className="h-3 w-3 mr-1" />
+   533→                                    Reject
+   534→                                  </>
+   535→                                )}
+   536→                              </Button>
+   537→                            </div>
+   538→                          </TableCell>
+   539→                        </TableRow>
+   540→                      ))}
+   541→                  </TableBody>
+   542→                </Table>
+   543→              ) : (
+   544→                <div className="text-center py-8">
+   545→                  <p className="text-sm text-muted-foreground">
+   546→                    No pending withdrawals
+   547→                  </p>
+   548→                </div>
+   549→              )}
+   550→            </CardContent>
+   551→          </Card>
+   552→
+   553→          {/* All Withdrawals */}
+   554→          <Card className="mt-6">
+   555→            <CardHeader>
+   556→              <CardTitle className="text-base">All Withdrawals</CardTitle>
+   557→            </CardHeader>
+   558→            <CardContent>
+   559→              <Table>
+   560→                <TableHeader>
+   561→                  <TableRow>
+   562→                    <TableHead>Creator</TableHead>
+   563→                    <TableHead className="text-right">Amount</TableHead>
+   564→                    <TableHead className="hidden sm:table-cell">
+   565→                      Provider
+   566→                    </TableHead>
+   567→                    <TableHead>Status</TableHead>
+   568→                    <TableHead className="hidden sm:table-cell">
+   569→                      Date
+   570→                    </TableHead>
+   571→                  </TableRow>
+   572→                </TableHeader>
+   573→                <TableBody>
+   574→                  {withdrawals.map((wd) => (
+   575→                    <TableRow key={wd.id}>
+   576→                      <TableCell className="font-medium">
+   577→                        {getCreatorName(wd.creatorId)}
+   578→                      </TableCell>
+   579→                      <TableCell className="text-right">
+   580→                        {formatCurrency(wd.amount)}
+   581→                      </TableCell>
+   582→                      <TableCell className="hidden sm:table-cell text-muted-foreground">
+   583→                        {wd.provider}
+   584→                      </TableCell>
+   585→                      <TableCell>
+   586→                        <Badge
+   587→                          variant={
+   588→                            wd.status === "completed" || wd.status === "approved"
+   589→                              ? "default"
+   590→                              : wd.status === "pending"
+   591→                              ? "secondary"
+   592→                              : wd.status === "processing"
+   593→                              ? "outline"
+   594→                              : "destructive"
+   595→                          }
+   596→                          className={
+   597→                            wd.status === "completed" || wd.status === "approved"
+   598→                              ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400"
+   599→                              : ""
+   600→                          }
+   601→                        >
+   602→                          {WITHDRAWAL_STATUS_LABELS[wd.status as keyof typeof WITHDRAWAL_STATUS_LABELS] || wd.status}
+   603→                        </Badge>
+   604→                      </TableCell>
+   605→                      <TableCell className="hidden sm:table-cell text-muted-foreground text-xs">
+   606→                        {new Date(wd.createdAt).toLocaleDateString()}
+   607→                      </TableCell>
+   608→                    </TableRow>
+   609→                  ))}
+   610→                </TableBody>
+   611→              </Table>
+   612→            </CardContent>
+   613→          </Card>
+   614→        </TabsContent>
+   615→
+   616→        {/* ── Orders Tab ── */}
+   617→        <TabsContent value="orders">
+   618→          <Card>
+   619→            <CardHeader>
+   620→              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+   621→                <CardTitle className="text-base">All Orders</CardTitle>
+   622→                <div className="flex items-center gap-1 bg-muted rounded-lg p-1">
+   623→                  {["all", "completed", "pending", "failed"].map((filter) => (
+   624→                    <Button
+   625→                      key={filter}
+   626→                      variant={orderFilter === filter ? "default" : "ghost"}
+   627→                      size="sm"
+   628→                      className={`text-xs h-7 px-3 ${
+   629→                        orderFilter === filter
+   630→                          ? "bg-background shadow-sm"
+   631→                          : ""
+   632→                      }`}
+   633→                      onClick={() => setOrderFilter(filter)}
+   634→                    >
+   635→                      {filter === "all"
+   636→                        ? "All"
+   637→                        : ORDER_STATUS_LABELS[filter] || filter}
+   638→                    </Button>
+   639→                  ))}
+   640→                </div>
+   641→              </div>
+   642→            </CardHeader>
+   643→            <CardContent>
+   644→              <Table>
+   645→                <TableHeader>
+   646→                  <TableRow>
+   647→                    <TableHead>Buyer</TableHead>
+   648→                    <TableHead className="hidden sm:table-cell">
+   649→                      Product
+   650→                    </TableHead>
+   651→                    <TableHead className="text-right">Amount</TableHead>
+   652→                    <TableHead className="text-right hidden md:table-cell">
+   653→                      Fee
+   654→                    </TableHead>
+   655→                    <TableHead className="hidden md:table-cell">
+   656→                      Creator
+   657→                    </TableHead>
+   658→                    <TableHead>Status</TableHead>
+   659→                    <TableHead className="hidden sm:table-cell">Date</TableHead>
+   660→                  </TableRow>
+   661→                </TableHeader>
+   662→                <TableBody>
+   663→                  {filteredOrders.map((order) => (
+   664→                    <TableRow key={order.id}>
+   665→                      <TableCell>
+   666→                        <div>
+   667→                          <p className="text-sm font-medium">
+   668→                            {order.buyerName}
+   669→                          </p>
+   670→                          <p className="text-xs text-muted-foreground">
+   671→                            {order.buyerEmail}
+   672→                          </p>
+   673→                        </div>
+   674→                      </TableCell>
+   675→                      <TableCell className="hidden sm:table-cell text-muted-foreground text-sm">
+   676→                        {getProductName(order.productId)}
+   677→                      </TableCell>
+   678→                      <TableCell className="text-right font-medium">
+   679→                        {formatCurrency(order.amount)}
+   680→                      </TableCell>
+   681→                      <TableCell className="text-right hidden md:table-cell text-muted-foreground">
+   682→                        {formatCurrency(order.platformFee)}
+   683→                      </TableCell>
+   684→                      <TableCell className="hidden md:table-cell text-muted-foreground text-sm">
+   685→                        {getCreatorName(order.creatorId)}
+   686→                      </TableCell>
+   687→                      <TableCell>
+   688→                        <Badge
+   689→                          variant={
+   690→                            order.status === "completed"
+   691→                              ? "default"
+   692→                              : order.status === "pending"
+   693→                              ? "secondary"
+   694→                              : order.status === "refunded"
+   695→                              ? "outline"
+   696→                              : "destructive"
+   697→                          }
+   698→                          className={
+   699→                            order.status === "completed"
+   700→                              ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400"
+   701→                              : ""
+   702→                          }
+   703→                        >
+   704→                          {ORDER_STATUS_LABELS[order.status as keyof typeof ORDER_STATUS_LABELS] || order.status}
+   705→                        </Badge>
+   706→                      </TableCell>
+   707→                      <TableCell className="hidden sm:table-cell text-muted-foreground text-xs">
+   708→                        {new Date(order.createdAt).toLocaleDateString()}
+   709→                      </TableCell>
+   710→                    </TableRow>
+   711→                  ))}
+   712→                </TableBody>
+   713→              </Table>
+   714→            </CardContent>
+   715→          </Card>
+   716→        </TabsContent>
+   717→      </Tabs>
+   718→    </div>
+   719→  );
+   720→}
+   721→

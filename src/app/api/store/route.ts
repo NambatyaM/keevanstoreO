@@ -152,8 +152,8 @@ export async function PUT(request: NextRequest) {
     }
 
     if (isUsingMockData()) {
-      const creator = getMockCreatorById(creatorId);
-      if (!creator) {
+      const creatorIndex = mockCreators.findIndex((c) => c.id === creatorId);
+      if (creatorIndex < 0) {
         return NextResponse.json(
           { success: false, error: "Creator not found" },
           { status: 404 }
@@ -161,10 +161,13 @@ export async function PUT(request: NextRequest) {
       }
 
       const updatedCreator: Creator = {
-        ...creator,
+        ...mockCreators[creatorIndex],
         ...(safeUpdates as Partial<Creator>),
         updatedAt: new Date().toISOString(),
       };
+
+      // Persist the update in mock data so it survives across requests
+      mockCreators[creatorIndex] = updatedCreator;
 
       return NextResponse.json({ success: true, data: updatedCreator });
     }

@@ -87,8 +87,8 @@ export async function PUT(
     }
 
     if (isUsingMockData()) {
-      const product = getMockProductById(id);
-      if (!product) {
+      const productIndex = mockProducts.findIndex((p) => p.id === id);
+      if (productIndex < 0) {
         return NextResponse.json(
           { success: false, error: "Product not found" },
           { status: 404 }
@@ -96,10 +96,13 @@ export async function PUT(
       }
 
       const updatedProduct: Product = {
-        ...product,
+        ...mockProducts[productIndex],
         ...body,
         updatedAt: new Date().toISOString(),
       };
+
+      // Persist in mock data so updates survive across requests
+      mockProducts[productIndex] = updatedProduct;
 
       return NextResponse.json({ success: true, data: updatedProduct });
     }
@@ -189,20 +192,23 @@ export async function DELETE(
     const { id } = await params;
 
     if (isUsingMockData()) {
-      const product = getMockProductById(id);
-      if (!product) {
+      const productIndex = mockProducts.findIndex((p) => p.id === id);
+      if (productIndex < 0) {
         return NextResponse.json(
           { success: false, error: "Product not found" },
           { status: 404 }
         );
       }
 
-      // Soft delete - return updated product with inactive status
+      // Soft delete - update status to inactive and persist
       const updatedProduct: Product = {
-        ...product,
+        ...mockProducts[productIndex],
         status: ProductStatus.INACTIVE,
         updatedAt: new Date().toISOString(),
       };
+
+      // Persist the soft delete in mock data
+      mockProducts[productIndex] = updatedProduct;
 
       return NextResponse.json({ success: true, data: updatedProduct });
     }

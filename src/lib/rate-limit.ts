@@ -10,8 +10,13 @@ interface RateLimitEntry {
 const store = new Map<string, RateLimitEntry>();
 
 // Clean up expired entries every 5 minutes
-if (typeof globalThis !== "undefined") {
-  setInterval(() => {
+// Use globalThis to ensure only one interval exists even with hot-reload
+const globalForRateLimit = globalThis as unknown as {
+  rateLimitCleanupInterval: ReturnType<typeof setInterval> | undefined;
+};
+
+if (typeof globalThis !== "undefined" && !globalForRateLimit.rateLimitCleanupInterval) {
+  globalForRateLimit.rateLimitCleanupInterval = setInterval(() => {
     const now = Date.now();
     for (const [key, entry] of store.entries()) {
       if (now > entry.resetTime) {

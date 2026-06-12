@@ -153,6 +153,8 @@ export default function AdminPage() {
 
   // Get product name by ID
   const getProductName = (productId: string) => {
+    // Donation orders have a synthetic productId like "donation-don-xxx"
+    if (productId.startsWith("donation-")) return "Donation";
     const product = mockProducts.find((p) => p.id === productId);
     return product?.title || productId;
   };
@@ -244,7 +246,7 @@ export default function AdminPage() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {mockCreators
+                  {[...mockCreators]
                     .sort(
                       (a, b) => b.totalEarnings - a.totalEarnings
                     )

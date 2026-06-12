@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
     if (!orderTrackingId) {
       // Redirect to cancel page if no tracking ID
       return NextResponse.redirect(
-        new URL("/payment/cancel?reason=no_tracking_id", request.url)
+        new URL("/payment/cancel?reason=no_tracking_id", process.env.NEXT_PUBLIC_APP_URL || request.url)
       );
     }
 
@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
 
       if (!order) {
         return NextResponse.redirect(
-          new URL("/payment/cancel?reason=order_not_found", request.url)
+          new URL("/payment/cancel?reason=order_not_found", process.env.NEXT_PUBLIC_APP_URL || request.url)
         );
       }
 
@@ -86,7 +86,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(
         new URL(
           `/payment/success?orderId=${order.id}&trackingId=${orderTrackingId}${downloadTokenParam}`,
-          request.url
+          process.env.NEXT_PUBLIC_APP_URL || request.url
         )
       );
     }
@@ -96,7 +96,7 @@ export async function GET(request: NextRequest) {
 
     if (!transactionStatus) {
       return NextResponse.redirect(
-        new URL("/payment/cancel?reason=status_check_failed", request.url)
+        new URL("/payment/cancel?reason=status_check_failed", process.env.NEXT_PUBLIC_APP_URL || request.url)
       );
     }
 
@@ -104,7 +104,7 @@ export async function GET(request: NextRequest) {
     const serviceClient = createServiceRoleClient();
     if (!serviceClient) {
       return NextResponse.redirect(
-        new URL("/payment/cancel?reason=service_unavailable", request.url)
+        new URL("/payment/cancel?reason=service_unavailable", process.env.NEXT_PUBLIC_APP_URL || request.url)
       );
     }
 
@@ -116,7 +116,7 @@ export async function GET(request: NextRequest) {
 
     if (!orderRow) {
       return NextResponse.redirect(
-        new URL("/payment/cancel?reason=order_not_found", request.url)
+        new URL("/payment/cancel?reason=order_not_found", process.env.NEXT_PUBLIC_APP_URL || request.url)
       );
     }
 
@@ -153,7 +153,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(
         new URL(
           `/payment/success?orderId=${orderId}&trackingId=${orderTrackingId}${downloadTokenParam}`,
-          request.url
+          process.env.NEXT_PUBLIC_APP_URL || request.url
         )
       );
     }
@@ -162,7 +162,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(
         new URL(
           `/payment/success?orderId=${orderId}&status=pending`,
-          request.url
+          process.env.NEXT_PUBLIC_APP_URL || request.url
         )
       );
     }
@@ -170,12 +170,12 @@ export async function GET(request: NextRequest) {
     // Payment FAILED or INVALID
     const reason = transactionStatus.payment_status || "payment_failed";
     return NextResponse.redirect(
-      new URL(`/payment/cancel?reason=${reason}`, request.url)
+      new URL(`/payment/cancel?reason=${reason}`, process.env.NEXT_PUBLIC_APP_URL || request.url)
     );
   } catch (error) {
     console.error("Error in pesapal callback GET:", error instanceof Error ? error.message : String(error));
     return NextResponse.redirect(
-      new URL("/payment/cancel?reason=server_error", request.url)
+      new URL("/payment/cancel?reason=server_error", process.env.NEXT_PUBLIC_APP_URL || request.url)
     );
   }
 }

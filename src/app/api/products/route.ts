@@ -172,6 +172,9 @@ export async function POST(request: NextRequest) {
         updatedAt: new Date().toISOString(),
       };
 
+      // Persist in mock data so it appears in subsequent requests
+      mockProducts.push(newProduct);
+
       return NextResponse.json({
         success: true,
         data: newProduct,

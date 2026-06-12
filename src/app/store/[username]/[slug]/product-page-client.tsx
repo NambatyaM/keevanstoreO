@@ -14,6 +14,7 @@ import {
   CreditCard,
   Smartphone,
   ChevronRight,
+  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -402,7 +403,7 @@ export function ProductPageClient({ creator, product, username, slug }: ProductP
                 >
                   {isProcessing ? (
                     <>
-                      <ArrowLeft className="h-4 w-4 mr-2 animate-spin" />
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                       Processing...
                     </>
                   ) : (

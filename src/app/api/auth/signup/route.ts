@@ -3,7 +3,7 @@
 // GET /api/auth/signup?check_username=xxx — Check username availability
 // ============================================================
 import { NextRequest, NextResponse } from "next/server";
-import { isUsingMockData, isMockUsernameAvailable, mockCreators } from "@/lib/mock-data";
+import { isUsingMockData, isMockUsernameAvailable, mockCreators, setMockPassword } from "@/lib/mock-data";
 import { USERNAME_RULES } from "@/lib/constants";
 import { createServerSupabaseClient, createServiceRoleClient } from "@/lib/supabase/server";
 import { mapCreatorFromDb } from "@/lib/db-mappers";
@@ -91,6 +91,9 @@ export async function POST(request: NextRequest) {
 
       // Persist the new creator in mock data so they can log back in
       mockCreators.push(newCreator);
+
+      // Save the password so the new user can actually log in
+      setMockPassword(newCreator.id, password);
 
       const response = NextResponse.json({
         success: true,

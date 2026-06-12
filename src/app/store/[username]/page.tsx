@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { isUsingMockData, getMockStorePublicData } from "@/lib/mock-data";
 import { mapCreatorFromDb, mapProductFromDb } from "@/lib/db-mappers";
+import { sanitizeForJsonLd } from "@/lib/utils";
 import { StorePageClient } from "./store-page-client";
 import type { Creator, Product } from "@/types";
 
@@ -159,11 +160,11 @@ export default async function PublicStorePage({ params }: Props) {
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(personSchema) }}
+        dangerouslySetInnerHTML={{ __html: sanitizeForJsonLd(JSON.stringify(personSchema)) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
+        dangerouslySetInnerHTML={{ __html: sanitizeForJsonLd(JSON.stringify(faqSchema)) }}
       />
       <StorePageClient creator={creator} products={products} username={username} />
     </>

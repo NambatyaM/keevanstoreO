@@ -21,7 +21,7 @@ export function formatCurrency(
 ): string {
   return new Intl.NumberFormat("en-UG", {
     style: "currency",
-    currency: currency === "UGX" ? "UGX" : currency,
+    currency,
     minimumFractionDigits: showDecimals ? 2 : 0,
     maximumFractionDigits: showDecimals ? 2 : 0,
   }).format(amount);

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { isUsingMockData, getMockCreator, getMockProductBySlug } from "@/lib/mock-data";
 import { mapCreatorFromDb, mapProductFromDb } from "@/lib/db-mappers";
+import { sanitizeForJsonLd } from "@/lib/utils";
 import { ProductPageClient } from "@/app/store/[username]/[slug]/product-page-client";
 import type { Creator, Product } from "@/types";
 
@@ -186,12 +187,12 @@ export default async function PublicProductPage({ params }: Props) {
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(productSchema) }}
+        dangerouslySetInnerHTML={{ __html: sanitizeForJsonLd(JSON.stringify(productSchema)) }}
       />
       {eventSchema && (
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(eventSchema) }}
+          dangerouslySetInnerHTML={{ __html: sanitizeForJsonLd(JSON.stringify(eventSchema)) }}
         />
       )}
       <ProductPageClient creator={creator} product={product} username={username} slug={slug} />

@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
     const forwarded = request.headers.get("x-forwarded-for");
     const ip = forwarded?.split(",")[0]?.trim() || "unknown";
     const encoder = new TextEncoder();
-    const data = encoder.encode(ip + (process.env.NEXTAUTH_SECRET || "keevan-salt"));
+    const data = encoder.encode(ip + (process.env.NEXTAUTH_SECRET || "keevan-page-view-salt-v1"));
     const hashBuffer = await crypto.subtle.digest("SHA-256", data);
     const hashArray = Array.from(new Uint8Array(hashBuffer));
     const viewerIpHash = hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
