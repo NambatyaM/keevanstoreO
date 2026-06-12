@@ -34,6 +34,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { CurrencyDisplay, formatCurrency } from "@/components/shared/currency-display";
+import { WhatsAppSupportCard } from "@/components/shared/whatsapp-support";
 import { useAuth } from "@/hooks/use-auth";
 import { MIN_WITHDRAWAL_AMOUNT, WITHDRAWAL_STATUS_LABELS } from "@/lib/constants";
 import { toast } from "sonner";
@@ -241,6 +242,15 @@ export default function WithdrawalsPage() {
       </Card>
 
       {/* Withdrawal History */}
+      <WhatsAppSupportCard
+        title="Need help with withdrawals?"
+        description="Contact Support on WhatsApp"
+        buttons={[
+          { label: "Withdrawal Support", variant: "withdrawal" },
+        ]}
+        compact
+      />
+
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Withdrawal History</CardTitle>

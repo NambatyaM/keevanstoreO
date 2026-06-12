@@ -26,6 +26,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { CurrencyDisplay } from "@/components/shared/currency-display";
+import { WhatsAppSupportCard } from "@/components/shared/whatsapp-support";
 import type { Order, Product, Creator } from "@/types";
 
 interface DownloadSessionInfo {
@@ -328,22 +329,32 @@ function PaymentSuccessContent() {
 
         {/* No Order Found */}
         {!order && !loading && (
-          <Card className="border-amber-200 dark:border-amber-900 bg-amber-50/50 dark:bg-amber-950/20">
-            <CardContent className="p-6">
-              <div className="flex items-start gap-3">
-                <Mail className="h-5 w-5 text-amber-600 mt-0.5" />
-                <div>
-                  <p className="text-sm font-medium text-foreground">
-                    Confirmation Email Sent
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Your payment was successful. You will receive a confirmation
-                    email with your order details shortly.
-                  </p>
+          <>
+            <WhatsAppSupportCard
+              title="Having trouble accessing your purchase?"
+              description="Contact Keevan Store Support"
+              buttons={[
+                { label: "Get Help on WhatsApp", variant: "payment" },
+              ]}
+              compact
+            />
+            <Card className="border-amber-200 dark:border-amber-900 bg-amber-50/50 dark:bg-amber-950/20">
+              <CardContent className="p-6">
+                <div className="flex items-start gap-3">
+                  <Mail className="h-5 w-5 text-amber-600 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium text-foreground">
+                      Confirmation Email Sent
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Your payment was successful. You will receive a confirmation
+                      email with your order details shortly.
+                    </p>
+                  </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </>
         )}
 
         {/* Next Actions — Conversion Flow */}

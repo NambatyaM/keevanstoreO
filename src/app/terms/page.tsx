@@ -128,7 +128,7 @@ export default function TermsAndConditionsPage() {
               provide is accurate, complete, and not misleading. You are responsible for maintaining the
               confidentiality of your account credentials and for all activities that occur under your
               account. You must notify us immediately of any unauthorized use of your account by
-              contacting us at support@keevanstore.in.
+              contacting us on WhatsApp at +256 768 345 905.
             </p>
             <p>
               Each person may maintain only one creator account. Usernames must be between 3 and 30
@@ -296,7 +296,7 @@ export default function TermsAndConditionsPage() {
               withdrawal threshold.
             </p>
             <p>
-              You may delete your account at any time by contacting us at support@keevanstore.in. Upon
+              You may delete your account at any time by contacting us on WhatsApp at +256 768 345 905. Upon
               account deletion, your store page and all products will be removed from the Platform.
               Existing orders and transaction records will be retained as required by law. Any pending
               earnings above the minimum withdrawal threshold will be processed within 30 days of
@@ -331,8 +331,8 @@ export default function TermsAndConditionsPage() {
               </li>
             </ul>
             <p>
-              Refund requests must be submitted within 7 days of purchase by contacting us at
-              support@keevanstore.in. Refunds are processed at the discretion of Keevan Store and, if
+              Refund requests must be submitted within 7 days of purchase by contacting us on
+              WhatsApp at +256 768 345 905. Refunds are processed at the discretion of Keevan Store and, if
               approved, will be returned using the original payment method. The 10% platform fee is
               non-refundable once a transaction has been completed.
             </p>
@@ -375,8 +375,7 @@ export default function TermsAndConditionsPage() {
               If you have any questions about these Terms and Conditions, please contact us:
             </p>
             <ul>
-              <li>Email: legal@keevanstore.in</li>
-              <li>General support: support@keevanstore.in</li>
+              <li>WhatsApp: +256 768 345 905</li>
               <li>General inquiries: <Link href="/contact" className="text-emerald-600 hover:underline">Contact Us page</Link></li>
             </ul>
           </div>

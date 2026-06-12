@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { CurrencyDisplay, formatCurrency } from "@/components/shared/currency-display";
 import { CopyButton } from "@/components/shared/copy-button";
+import { WhatsAppSupportCard } from "@/components/shared/whatsapp-support";
 import { useAuth } from "@/hooks/use-auth";
 import { PAYMENT_METHOD_LABELS, ORDER_STATUS_LABELS, PLATFORM_FEE_PERCENT } from "@/lib/constants";
 import type { DashboardStats, Order, Product } from "@/types";
@@ -291,6 +292,17 @@ export default function DashboardPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* WhatsApp Support Card */}
+      <WhatsAppSupportCard
+        title="Need Help?"
+        description="Contact Keevan Store Support"
+        buttons={[
+          { label: "Creator Support", variant: "creator" },
+          { label: "Withdrawal Support", variant: "withdrawal" },
+        ]}
+        compact
+      />
 
       {/* Recent Orders */}
       <Card>

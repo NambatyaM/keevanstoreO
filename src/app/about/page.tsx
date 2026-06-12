@@ -23,6 +23,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { SiteFooter } from "@/components/shared/site-footer";
+import { FloatingWhatsAppButton } from "@/components/shared/whatsapp-support";
 
 export const metadata: Metadata = {
   title: "About Keevan Store — How It Works | Sell Digital Products & Event Tickets in Uganda",
@@ -513,6 +514,7 @@ export default function AboutPage() {
         </main>
 
         <SiteFooter />
+        <FloatingWhatsAppButton />
       </div>
     </>
   );

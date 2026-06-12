@@ -22,6 +22,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { SiteFooter } from "@/components/shared/site-footer";
+import { FloatingWhatsAppButton, WhatsAppSupportCard } from "@/components/shared/whatsapp-support";
+import { MessageCircle } from "lucide-react";
 
 const features = [
   {
@@ -387,6 +389,22 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* WhatsApp Support Section */}
+      <section className="py-16 sm:py-24 bg-muted/30" aria-label="Support">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6">
+          <div className="max-w-lg mx-auto">
+            <WhatsAppSupportCard
+              title="Need Help?"
+              description="Contact Keevan Store Support"
+              buttons={[
+                { label: "Contact Support", variant: "general" },
+                { label: "Report a Bug", variant: "bug" },
+              ]}
+            />
+          </div>
+        </div>
+      </section>
+
       {/* CTA Section */}
       <section className="py-16 sm:py-24 bg-muted/30" aria-label="Get started">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
@@ -429,6 +447,7 @@ export default function LandingPage() {
       </section>
 
       <SiteFooter />
+      <FloatingWhatsAppButton />
     </div>
   );
 }

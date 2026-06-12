@@ -18,12 +18,14 @@ import {
   Package,
   HardDrive,
   RefreshCw,
+  MessageCircle,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
+import { WhatsAppSupportCard, WHATSAPP_URLS } from "@/components/shared/whatsapp-support";
 
 interface DownloadSessionInfo {
   id: string;
@@ -271,6 +273,19 @@ function DownloadPageContent() {
 
                 <div className="pt-4 space-y-3">
                   <Button
+                    className="w-full bg-[#25D366] hover:bg-[#1ebe5a] text-white"
+                    asChild
+                  >
+                    <a
+                      href={WHATSAPP_URLS.download}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <MessageCircle className="h-4 w-4 mr-2" />
+                      Get Help on WhatsApp
+                    </a>
+                  </Button>
+                  <Button
                     variant="outline"
                     className="w-full"
                     onClick={() => {
@@ -469,18 +484,15 @@ function DownloadPageContent() {
           </Badge>
         </div>
 
-        {/* Support Link */}
-        <div className="text-center">
-          <p className="text-xs text-muted-foreground">
-            Having trouble downloading?{" "}
-            <Link
-              href="/"
-              className="text-emerald-600 hover:text-emerald-700 font-medium"
-            >
-              Contact support
-            </Link>
-          </p>
-        </div>
+        {/* WhatsApp Support */}
+        <WhatsAppSupportCard
+          title="Download Issue?"
+          description="Contact Support"
+          buttons={[
+            { label: "Report Download Problem", variant: "download" },
+          ]}
+          compact
+        />
 
         {/* Back link */}
         <div className="text-center">

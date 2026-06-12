@@ -36,6 +36,7 @@ import {
 import { CurrencyDisplay, formatCurrency } from "@/components/shared/currency-display";
 import { CopyButton } from "@/components/shared/copy-button";
 import { SiteFooter } from "@/components/shared/site-footer";
+import { FloatingWhatsAppButton } from "@/components/shared/whatsapp-support";
 import { PRODUCT_TYPE_LABELS } from "@/lib/constants";
 import type { Creator, Product, PaymentMethod } from "@/types";
 import { format } from "date-fns";
@@ -273,6 +274,7 @@ export function ProductPageClient({ creator, product, username, slug }: ProductP
       </div>
 
       <SiteFooter variant="store" creatorName={creator.displayName} username={username} />
+      <FloatingWhatsAppButton />
 
       {/* Checkout Dialog */}
       <Dialog open={showCheckout} onOpenChange={setShowCheckout}>

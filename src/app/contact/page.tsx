@@ -1,6 +1,6 @@
 // ============================================================
-// Contact Us Page — Trust & Legitimacy Page
-// Contact form, email addresses, and business location
+// Contact Us Page — WhatsApp Support
+// All support via WhatsApp Business: +256 768 345 905
 // ============================================================
 "use client";
 
@@ -8,9 +8,8 @@ import { useState } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
-  Mail,
   MapPin,
-  MessageSquare,
+  MessageCircle,
   Clock,
   Send,
   CheckCircle2,
@@ -23,6 +22,9 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent } from "@/components/ui/card";
 import { SiteFooter } from "@/components/shared/site-footer";
+import { WhatsAppSupportCard, WHATSAPP_URLS, FloatingWhatsAppButton } from "@/components/shared/whatsapp-support";
+
+const WHATSAPP_DISPLAY = "+256 768 345 905";
 
 export default function ContactPage() {
   const [formData, setFormData] = useState({
@@ -77,20 +79,22 @@ export default function ContactPage() {
 
   const contactMethods = [
     {
-      icon: Mail,
-      title: "Email Us",
+      icon: MessageCircle,
+      title: "WhatsApp Support",
       description:
-        "For general questions, account issues, or partnership inquiries, send us an email and we will respond within 24-48 hours.",
-      value: "support@keevanstore.in",
-      href: "mailto:support@keevanstore.in",
+        "Get help instantly via WhatsApp. We typically respond within minutes during business hours and within a few hours otherwise.",
+      value: WHATSAPP_DISPLAY,
+      href: WHATSAPP_URLS.general,
+      isWhatsApp: true,
     },
     {
       icon: Shield,
       title: "Privacy & Legal",
       description:
-        "For privacy concerns, data deletion requests, or legal matters, contact our privacy team directly.",
-      value: "privacy@keevanstore.in",
-      href: "mailto:privacy@keevanstore.in",
+        "For privacy concerns, data deletion requests, or legal matters, reach out to us on WhatsApp and we will connect you with the right team.",
+      value: WHATSAPP_DISPLAY,
+      href: WHATSAPP_URLS.general,
+      isWhatsApp: true,
     },
     {
       icon: MapPin,
@@ -99,24 +103,25 @@ export default function ContactPage() {
         "Keevan Store is based in Kampala, Uganda. We serve creators and buyers across the entire country through our online platform.",
       value: "Kampala, Uganda",
       href: null,
+      isWhatsApp: false,
     },
   ];
 
   const responseTimes = [
     {
-      icon: MessageSquare,
-      title: "General Inquiries",
-      time: "24-48 hours",
+      icon: MessageCircle,
+      title: "WhatsApp Support",
+      time: "Minutes to a few hours",
     },
     {
       icon: Shield,
       title: "Privacy & Legal",
-      time: "5 business days",
+      time: "1-3 business days",
     },
     {
       icon: Smartphone,
       title: "Payment Issues",
-      time: "24 hours",
+      time: "Within a few hours",
     },
   ];
 
@@ -153,15 +158,15 @@ export default function ContactPage() {
         <section className="py-12 sm:py-16">
           <div className="max-w-4xl mx-auto px-4 sm:px-6 text-center">
             <div className="inline-flex items-center gap-2 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 px-3 py-1 rounded-full text-sm font-medium mb-4">
-              <MessageSquare className="h-3.5 w-3.5" />
+              <MessageCircle className="h-3.5 w-3.5" />
               Get in Touch
             </div>
             <h1 className="text-3xl sm:text-4xl font-bold text-foreground tracking-tight">
               Contact Us
             </h1>
             <p className="mt-3 text-muted-foreground text-lg max-w-2xl mx-auto">
-              Have a question, need help, or want to report an issue? We are here for you.
-              Reach out and our team will get back to you as soon as possible.
+              Have a question, need help, or want to report an issue? Reach out on WhatsApp
+              for the fastest response. We are here for you.
             </p>
           </div>
         </section>
@@ -173,7 +178,7 @@ export default function ContactPage() {
               {contactMethods.map((method) => (
                 <Card key={method.title} className="h-full hover:shadow-lg transition-shadow">
                   <CardContent className="p-6">
-                    <div className="h-12 w-12 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 text-emerald-600 flex items-center justify-center mb-4">
+                    <div className={`h-12 w-12 rounded-lg ${method.isWhatsApp ? "bg-[#25D366]/10 dark:bg-[#25D366]/20" : "bg-emerald-50 dark:bg-emerald-950/30"} ${method.isWhatsApp ? "text-[#25D366]" : "text-emerald-600"} flex items-center justify-center mb-4`}>
                       <method.icon className="h-6 w-6" />
                     </div>
                     <h3 className="font-semibold text-foreground text-lg">
@@ -185,8 +190,11 @@ export default function ContactPage() {
                     {method.href ? (
                       <a
                         href={method.href}
-                        className="mt-3 inline-block text-sm font-medium text-emerald-600 hover:text-emerald-700 transition-colors"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={`mt-3 inline-flex items-center gap-1.5 text-sm font-medium ${method.isWhatsApp ? "text-[#25D366] hover:text-[#1ebe5a]" : "text-emerald-600 hover:text-emerald-700"} transition-colors`}
                       >
+                        <MessageCircle className="h-3.5 w-3.5" />
                         {method.value}
                       </a>
                     ) : (
@@ -201,8 +209,46 @@ export default function ContactPage() {
           </div>
         </section>
 
+        {/* WhatsApp Quick Actions */}
+        <section className="py-12 bg-muted/30">
+          <div className="max-w-4xl mx-auto px-4 sm:px-6">
+            <h2 className="text-2xl font-bold text-foreground mb-2 text-center">
+              Quick Support
+            </h2>
+            <p className="text-muted-foreground mb-8 text-center">
+              Tap the option that matches your issue to get help faster
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {[
+                { label: "General Support", variant: "general" as const, icon: MessageCircle },
+                { label: "Payment Issues", variant: "payment" as const, icon: Smartphone },
+                { label: "Download Problems", variant: "download" as const, icon: Shield },
+                { label: "Creator Support", variant: "creator" as const, icon: MessageCircle },
+                { label: "Withdrawal Help", variant: "withdrawal" as const, icon: Smartphone },
+                { label: "Report a Bug", variant: "bug" as const, icon: Shield },
+              ].map((item) => (
+                <a
+                  key={item.variant}
+                  href={WHATSAPP_URLS[item.variant]}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-3 p-4 rounded-lg border bg-background hover:border-[#25D366] hover:shadow-md transition-all"
+                >
+                  <div className="h-10 w-10 rounded-lg bg-[#25D366]/10 dark:bg-[#25D366]/20 flex items-center justify-center flex-shrink-0">
+                    <item.icon className="h-5 w-5 text-[#25D366]" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-foreground">{item.label}</p>
+                    <p className="text-xs text-muted-foreground">Chat on WhatsApp</p>
+                  </div>
+                </a>
+              ))}
+            </div>
+          </div>
+        </section>
+
         {/* Contact Form + Response Times */}
-        <section className="py-12 sm:py-16 bg-muted/30">
+        <section className="py-12 sm:py-16">
           <div className="max-w-6xl mx-auto px-4 sm:px-6">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
               {/* Form */}
@@ -224,18 +270,33 @@ export default function ContactPage() {
                       </h3>
                       <p className="mt-2 text-muted-foreground">
                         Thank you for reaching out. We have received your message and will
-                        respond within 24-48 hours. Check your email for a confirmation.
+                        respond as soon as possible. For faster help, reach out on WhatsApp.
                       </p>
-                      <Button
-                        className="mt-6 bg-emerald-600 hover:bg-emerald-700 text-white"
-                        onClick={() => {
-                          setSubmitted(false);
-                          setSubmitError("");
-                          setFormData({ name: "", email: "", subject: "", message: "" });
-                        }}
-                      >
-                        Send Another Message
-                      </Button>
+                      <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mt-6">
+                        <Button
+                          className="bg-[#25D366] hover:bg-[#1ebe5a] text-white"
+                          asChild
+                        >
+                          <a
+                            href={WHATSAPP_URLS.general}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            <MessageCircle className="h-4 w-4 mr-2" />
+                            Chat on WhatsApp
+                          </a>
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            setSubmitted(false);
+                            setSubmitError("");
+                            setFormData({ name: "", email: "", subject: "", message: "" });
+                          }}
+                        >
+                          Send Another Message
+                        </Button>
+                      </div>
                     </CardContent>
                   </Card>
                 ) : (
@@ -346,14 +407,28 @@ export default function ContactPage() {
                   ))}
                 </div>
 
-                <div className="mt-6 p-4 rounded-lg bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900">
-                  <h4 className="font-medium text-emerald-700 dark:text-emerald-400 text-sm">
-                    Payment Issues?
+                <div className="mt-6 p-4 rounded-lg bg-[#25D366]/5 border border-[#25D366]/20">
+                  <h4 className="font-medium text-[#25D366] text-sm">
+                    Fastest Response
                   </h4>
-                  <p className="mt-1 text-sm text-emerald-600/80 dark:text-emerald-400/80">
-                    If you have a problem with a payment, include your transaction reference
-                    and email address in the message for faster resolution.
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    For the quickest help, message us on WhatsApp. Our team is available
+                    to assist you in real-time during business hours.
                   </p>
+                  <Button
+                    size="sm"
+                    className="mt-3 bg-[#25D366] hover:bg-[#1ebe5a] text-white"
+                    asChild
+                  >
+                    <a
+                      href={WHATSAPP_URLS.general}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <MessageCircle className="h-3.5 w-3.5 mr-1.5" />
+                      Open WhatsApp
+                    </a>
+                  </Button>
                 </div>
 
                 <div className="mt-4 p-4 rounded-lg bg-background border">
@@ -371,7 +446,7 @@ export default function ContactPage() {
         </section>
 
         {/* FAQ Section */}
-        <section className="py-12 sm:py-16">
+        <section className="py-12 sm:py-16 bg-muted/30">
           <div className="max-w-4xl mx-auto px-4 sm:px-6">
             <h2 className="text-2xl font-bold text-foreground mb-2 text-center">
               Common Questions
@@ -388,8 +463,8 @@ export default function ContactPage() {
                 <p className="mt-3 text-sm text-muted-foreground leading-relaxed">
                   If you have forgotten your password, use the &quot;Forgot Password&quot; link on the login
                   page. We will send a password reset link to the email address associated with
-                  your account. If you no longer have access to that email, contact us at
-                  support@keevanstore.in and we will help you recover your account.
+                  your account. If you no longer have access to that email, message us on
+                  WhatsApp and we will help you recover your account.
                 </p>
               </details>
 
@@ -400,7 +475,7 @@ export default function ContactPage() {
                 <p className="mt-3 text-sm text-muted-foreground leading-relaxed">
                   First, check your spam or junk folder. Download links are sent to the email
                   address you provided during checkout and are valid for 24 hours. If you still
-                  cannot find it, contact us at support@keevanstore.in with your name, email
+                  cannot find it, message us on WhatsApp with your name, email
                   address, and the product you purchased. We will resend the download link.
                 </p>
               </details>
@@ -412,8 +487,8 @@ export default function ContactPage() {
                 <p className="mt-3 text-sm text-muted-foreground leading-relaxed">
                   Withdrawals are processed within 3-5 business days. Once processed, the
                   funds will be sent to the mobile money number you specified. If you have
-                  not received your withdrawal after 5 business days, contact us and include
-                  your username and the withdrawal amount.
+                  not received your withdrawal after 5 business days, message us on WhatsApp
+                  and include your username and the withdrawal amount.
                 </p>
               </details>
 
@@ -422,8 +497,8 @@ export default function ContactPage() {
                   <span>How do I request a refund?</span>
                 </summary>
                 <p className="mt-3 text-sm text-muted-foreground leading-relaxed">
-                  Refund requests must be submitted within 7 days of purchase by emailing
-                  support@keevanstore.in. Include your name, email, the product name, and the
+                  Refund requests must be submitted within 7 days of purchase by messaging us
+                  on WhatsApp. Include your name, email, the product name, and the
                   reason for the refund. Refunds are evaluated on a case-by-case basis.
                   See our <Link href="/terms" className="text-emerald-600 hover:underline">Terms and Conditions</Link> for
                   the full refund policy.
@@ -435,11 +510,10 @@ export default function ContactPage() {
                   <span>I want to delete my account. How do I do that?</span>
                 </summary>
                 <p className="mt-3 text-sm text-muted-foreground leading-relaxed">
-                  To delete your account, contact us at support@keevanstore.in or
-                  privacy@keevanstore.in with your username and email address. We will
-                  process your request within 30 days. Any pending earnings above the minimum
-                  withdrawal threshold (UGX 50,000) will be paid out before deletion.
-                  See our <Link href="/privacy" className="text-emerald-600 hover:underline">Privacy Policy</Link> for
+                  To delete your account, message us on WhatsApp with your username
+                  and email address. We will process your request within 30 days. Any pending
+                  earnings above the minimum withdrawal threshold (UGX 50,000) will be paid
+                  out before deletion. See our <Link href="/privacy" className="text-emerald-600 hover:underline">Privacy Policy</Link> for
                   more details.
                 </p>
               </details>
@@ -449,6 +523,7 @@ export default function ContactPage() {
       </main>
 
       <SiteFooter />
+      <FloatingWhatsAppButton />
     </div>
   );
 }

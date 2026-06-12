@@ -9,6 +9,7 @@ import { Package, ChevronRight } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { SiteFooter } from "@/components/shared/site-footer";
+import { FloatingWhatsAppButton } from "@/components/shared/whatsapp-support";
 import type { Creator, Product } from "@/types";
 
 interface StorePageClientProps {
@@ -135,6 +136,7 @@ export function StorePageClient({ creator, products, username }: StorePageClient
       </div>
 
       <SiteFooter variant="store" creatorName={creator.displayName} username={username} />
+      <FloatingWhatsAppButton />
     </div>
   );
 }

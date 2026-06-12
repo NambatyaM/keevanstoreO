@@ -403,7 +403,7 @@ export default function PrivacyPolicyPage() {
               <li>
                 <strong>Deletion:</strong> You have the right to request deletion of your personal data,
                 subject to our legal obligations to retain certain records (such as financial
-                transactions). To request account deletion, please contact us at privacy@keevanstore.in.
+                transactions). To request account deletion, please contact us on WhatsApp at +256 768 345 905.
               </li>
               <li>
                 <strong>Objection:</strong> You have the right to object to the processing of your
@@ -416,7 +416,7 @@ export default function PrivacyPolicyPage() {
               </li>
             </ul>
             <p>
-              To exercise any of these rights, please contact us at privacy@keevanstore.in. We will
+              To exercise any of these rights, please contact us on WhatsApp at +256 768 345 905. We will
               respond to your request within 30 days.
             </p>
 
@@ -426,7 +426,7 @@ export default function PrivacyPolicyPage() {
               knowingly collect personal information from children under 18. If we learn that we have
               collected personal information from a child under 18, we will delete that information
               promptly. If you are a parent or guardian and believe that your child has provided us with
-              personal information, please contact us at privacy@keevanstore.in.
+              personal information, please contact us on WhatsApp at +256 768 345 905.
             </p>
 
             <h2>11. International Data Transfers</h2>
@@ -456,7 +456,7 @@ export default function PrivacyPolicyPage() {
               practices, please contact us:
             </p>
             <ul>
-              <li>Email: privacy@keevanstore.in</li>
+              <li>WhatsApp: +256 768 345 905</li>
               <li>General inquiries: <Link href="/contact" className="text-emerald-600 hover:underline">Contact Us page</Link></li>
             </ul>
           </div>

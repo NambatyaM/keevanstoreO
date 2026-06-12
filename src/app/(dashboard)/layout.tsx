@@ -7,6 +7,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { DashboardLayout } from "@/components/layout/dashboard-layout";
 import { useAuth } from "@/hooks/use-auth";
+import { FloatingWhatsAppButton } from "@/components/shared/whatsapp-support";
 import { Loader2 } from "lucide-react";
 
 export default function DashboardGroupLayout({
@@ -39,5 +40,10 @@ export default function DashboardGroupLayout({
     return null;
   }
 
-  return <DashboardLayout>{children}</DashboardLayout>;
+  return (
+    <>
+      <DashboardLayout>{children}</DashboardLayout>
+      <FloatingWhatsAppButton variant="creator" />
+    </>
+  );
 }

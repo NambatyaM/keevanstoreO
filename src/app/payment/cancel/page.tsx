@@ -7,9 +7,10 @@
 import { Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { XCircle, RotateCcw, ArrowLeft, Mail } from "lucide-react";
+import { XCircle, RotateCcw, ArrowLeft, MessageCircle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { WHATSAPP_URLS } from "@/components/shared/whatsapp-support";
 
 const REASON_MESSAGES: Record<string, string> = {
   no_tracking_id: "No payment tracking information was received. This may be a temporary issue.",
@@ -79,13 +80,15 @@ function PaymentCancelContent() {
         {/* Help text */}
         <p className="text-center text-xs text-muted-foreground">
           Need help?{" "}
-          <Link
-            href="/contact"
-            className="inline-flex items-center gap-1 text-emerald-600 hover:text-emerald-700 underline"
+          <a
+            href={WHATSAPP_URLS.payment}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-[#25D366] hover:text-[#1ebe5a] underline"
           >
-            <Mail className="h-3 w-3" />
-            Contact support
-          </Link>
+            <MessageCircle className="h-3 w-3" />
+            Contact Support on WhatsApp
+          </a>
         </p>
       </div>
     </div>

@@ -1,8 +1,12 @@
 // ============================================================
 // Shared Site Footer — Trust Links & Legal Pages
-// Used across all public pages for consistent navigation
+// WhatsApp support replacing email-based contact
 // ============================================================
 import Link from "next/link";
+import { MessageCircle } from "lucide-react";
+import { WHATSAPP_URLS } from "@/components/shared/whatsapp-support";
+
+const WHATSAPP_DISPLAY = "+256 768 345 905";
 
 interface SiteFooterProps {
   /** Variant for different page contexts */
@@ -46,9 +50,15 @@ export function SiteFooter({ variant = "default", creatorName, username }: SiteF
               <Link href="/terms" className="hover:text-foreground transition-colors">
                 Terms & Conditions
               </Link>
-              <Link href="/contact" className="hover:text-foreground transition-colors">
-                Contact Us
-              </Link>
+              <a
+                href={WHATSAPP_URLS.general}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-foreground transition-colors inline-flex items-center gap-1"
+              >
+                <MessageCircle className="h-3 w-3" />
+                WhatsApp Support
+              </a>
             </nav>
           </div>
           <p className="text-center text-xs text-muted-foreground mt-3">
@@ -83,19 +93,41 @@ export function SiteFooter({ variant = "default", creatorName, username }: SiteF
               <Link href="/terms" className="text-muted-foreground hover:text-foreground transition-colors">
                 Terms & Conditions
               </Link>
-              <Link href="/contact" className="text-muted-foreground hover:text-foreground transition-colors">
-                Contact Us
-              </Link>
+              <a
+                href={WHATSAPP_URLS.general}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-muted-foreground hover:text-foreground transition-colors inline-flex items-center gap-1.5"
+              >
+                <MessageCircle className="h-3.5 w-3.5 text-[#25D366]" />
+                WhatsApp Support
+              </a>
             </nav>
           </div>
 
-          {/* Bottom row: Copyright */}
+          {/* WhatsApp Support Row */}
           <div className="flex flex-col sm:flex-row items-center justify-between gap-2 border-t pt-4">
-            <p className="text-xs text-muted-foreground">
-              &copy; {currentYear} Keevan Store. All rights reserved.
+            <a
+              href={WHATSAPP_URLS.general}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors inline-flex items-center gap-1.5"
+            >
+              <MessageCircle className="h-4 w-4 text-[#25D366]" />
+              WhatsApp Support
+            </a>
+            <p className="text-sm font-medium text-foreground">
+              {WHATSAPP_DISPLAY}
             </p>
             <p className="text-xs text-muted-foreground">
               Payments processed securely by Pesapal. All prices in UGX.
+            </p>
+          </div>
+
+          {/* Bottom row: Copyright */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-2">
+            <p className="text-xs text-muted-foreground">
+              &copy; {currentYear} Keevan Store. All rights reserved.
             </p>
           </div>
         </div>

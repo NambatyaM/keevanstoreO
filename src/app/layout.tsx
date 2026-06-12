@@ -93,7 +93,7 @@ const organizationSchema = {
   contactPoint: {
     "@type": "ContactPoint",
     contactType: "customer service",
-    email: "support@keevanstore.in",
+    telephone: "+256768345905",
     availableLanguage: ["English"],
     areaServed: {
       "@type": "Country",

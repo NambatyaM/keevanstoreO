@@ -22,7 +22,14 @@ async function getProductData(username: string, slug: string) {
   }
 
   const supabase = createServiceRoleClient();
-  if (!supabase) return null;
+  if (!supabase) {
+    // Fallback to mock data if Supabase client is not available
+    const creator = getMockCreator(username);
+    if (!creator) return null;
+    const product = getMockProductBySlug(username, slug);
+    if (!product || product.status !== "active") return null;
+    return { creator, product };
+  }
 
   const { data: creatorRow } = await supabase
     .from("creators")
@@ -31,7 +38,14 @@ async function getProductData(username: string, slug: string) {
     .eq("is_active", true)
     .single();
 
-  if (!creatorRow) return null;
+  if (!creatorRow) {
+    // Fallback to mock data for demo stores
+    const creator = getMockCreator(username);
+    if (!creator) return null;
+    const product = getMockProductBySlug(username, slug);
+    if (!product || product.status !== "active") return null;
+    return { creator, product };
+  }
 
   const creator = mapCreatorFromDb(creatorRow);
 

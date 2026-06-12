@@ -21,7 +21,11 @@ async function getStoreData(username: string) {
   }
 
   const supabase = createServiceRoleClient();
-  if (!supabase) return null;
+  if (!supabase) {
+    // Fallback to mock data if Supabase client is not available
+    const storeData = getMockStorePublicData(username);
+    return storeData;
+  }
 
   const { data: creatorRow } = await supabase
     .from("creators")
@@ -30,7 +34,11 @@ async function getStoreData(username: string) {
     .eq("is_active", true)
     .single();
 
-  if (!creatorRow) return null;
+  if (!creatorRow) {
+    // Fallback to mock data for demo stores when no real creator found
+    const storeData = getMockStorePublicData(username);
+    return storeData;
+  }
 
   const creator = mapCreatorFromDb(creatorRow);
 
