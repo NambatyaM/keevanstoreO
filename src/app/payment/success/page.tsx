@@ -1,0 +1,267 @@
+// ============================================================
+// Payment Success Page
+// ============================================================
+"use client";
+
+import { Suspense, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import Link from "next/link";
+import {
+  CheckCircle2,
+  Download,
+  Mail,
+  Ticket,
+  ArrowLeft,
+  QrCode,
+  Loader2,
+} from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { CurrencyDisplay, formatCurrency } from "@/components/shared/currency-display";
+import type { Order, Product } from "@/types";
+
+function PaymentSuccessContent() {
+  const searchParams = useSearchParams();
+  const orderId = searchParams.get("orderId");
+  const trackingId = searchParams.get("trackingId");
+
+  const [order, setOrder] = useState<Order | null>(null);
+  const [product, setProduct] = useState<Product | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchOrder() {
+      if (!orderId) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/orders/${orderId}`);
+        const data = await res.json();
+        if (data.success && data.data) {
+          setOrder(data.data);
+
+          // Fetch product details
+          const prodRes = await fetch(`/api/products/${data.data.productId}`);
+          const prodData = await prodRes.json();
+          if (prodData.success && prodData.data) {
+            setProduct(prodData.data);
+          }
+        }
+      } catch {
+        // Order fetch failed
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchOrder();
+  }, [orderId]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center">
+          <Loader2 className="h-8 w-8 animate-spin text-emerald-600 mx-auto mb-4" />
+          <p className="text-muted-foreground">Confirming payment...</p>
+        </div>
+      </div>
+    );
+  }
+
+  const isDigital = product?.type === "digital";
+  const isEvent = product?.type === "event";
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <div className="max-w-md w-full space-y-6">
+        {/* Success Icon */}
+        <div className="text-center">
+          <div className="mx-auto w-16 h-16 rounded-full bg-emerald-100 dark:bg-emerald-950/30 flex items-center justify-center mb-4">
+            <CheckCircle2 className="h-10 w-10 text-emerald-600" />
+          </div>
+          <h1 className="text-2xl font-bold text-foreground">
+            Payment Successful!
+          </h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Your payment has been processed successfully
+          </p>
+        </div>
+
+        {/* Order Summary */}
+        {order && (
+          <Card>
+            <CardContent className="p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Order ID</span>
+                <span className="text-sm font-medium font-mono">
+                  {order.id}
+                </span>
+              </div>
+
+              {product && (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Product</span>
+                  <span className="text-sm font-medium">{product.title}</span>
+                </div>
+              )}
+
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Amount</span>
+                <CurrencyDisplay amount={order.amount} size="md" />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Status</span>
+                <Badge
+                  variant={
+                    order.status === "completed" ? "default" : "secondary"
+                  }
+                  className="bg-emerald-100 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400"
+                >
+                  {order.status === "completed" ? "Completed" : "Processing"}
+                </Badge>
+              </div>
+
+              {trackingId && (
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">
+                    Tracking ID
+                  </span>
+                  <span className="text-xs font-mono text-muted-foreground">
+                    {trackingId}
+                  </span>
+                </div>
+              )}
+
+              <div className="border-t pt-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">Buyer</span>
+                  <span className="text-sm font-medium">{order.buyerName}</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Digital Product - Download Info */}
+        {isDigital && (
+          <Card className="border-blue-200 dark:border-blue-900 bg-blue-50/50 dark:bg-blue-950/20">
+            <CardContent className="p-6">
+              <div className="flex items-start gap-3">
+                <Download className="h-5 w-5 text-blue-600 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-foreground">
+                    Download Your Product
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Check your email ({order?.buyerEmail}) for the download link.
+                    The link will be valid for 24 hours.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Event Product - Ticket Info */}
+        {isEvent && (
+          <Card className="border-purple-200 dark:border-purple-900 bg-purple-50/50 dark:bg-purple-950/20">
+            <CardContent className="p-6 space-y-4">
+              <div className="flex items-start gap-3">
+                <Ticket className="h-5 w-5 text-purple-600 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-foreground">
+                    Your Ticket
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Your ticket has been confirmed. Check your email for the
+                    ticket and QR code.
+                  </p>
+                </div>
+              </div>
+
+              {product?.venue && (
+                <div className="flex items-start gap-3">
+                  <QrCode className="h-5 w-5 text-purple-600 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium text-foreground">
+                      {product.venue}
+                    </p>
+                    {product.eventDate && (
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {new Date(product.eventDate).toLocaleDateString(
+                          "en-UG",
+                          {
+                            weekday: "long",
+                            year: "numeric",
+                            month: "long",
+                            day: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          }
+                        )}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* No Order Found */}
+        {!order && !loading && (
+          <Card className="border-amber-200 dark:border-amber-900 bg-amber-50/50 dark:bg-amber-950/20">
+            <CardContent className="p-6">
+              <div className="flex items-start gap-3">
+                <Mail className="h-5 w-5 text-amber-600 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-foreground">
+                    Confirmation Email Sent
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Your payment was successful. You will receive a confirmation
+                    email with your order details shortly.
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Actions */}
+        <div className="space-y-3">
+          <Button
+            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+            asChild
+          >
+            <Link href="/">
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Store
+            </Link>
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function PaymentSuccessPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-background">
+          <div className="text-center">
+            <Loader2 className="h-8 w-8 animate-spin text-emerald-600 mx-auto mb-4" />
+            <p className="text-muted-foreground">Loading...</p>
+          </div>
+        </div>
+      }
+    >
+      <PaymentSuccessContent />
+    </Suspense>
+  );
+}

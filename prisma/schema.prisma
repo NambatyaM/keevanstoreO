@@ -1,0 +1,122 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Creator {
+  id              String   @id @default(cuid())
+  email           String   @unique
+  username        String   @unique
+  displayName     String
+  bio             String   @default("")
+  photoUrl        String?
+  bannerUrl       String?
+  socialLinks     String   @default("[]") // JSON string
+  donationsEnabled Boolean  @default(false)
+  donationGoal    Int?
+  donationCurrent Int      @default(0)
+  balance         Int      @default(0)
+  totalEarnings   Int      @default(0)
+  totalSales      Int      @default(0)
+  totalViews      Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  products        Product[]
+  orders          Order[]
+}
+
+model Product {
+  id          String   @id @default(cuid())
+  creatorId   String
+  creator     Creator  @relation(fields: [creatorId], references: [id])
+  title       String
+  slug        String
+  description String   @default("")
+  price       Int
+  currency    String   @default("UGX")
+  type        String   @default("digital") // digital, event
+  status      String   @default("active") // active, inactive
+  thumbnailUrl String?
+  fileUrl     String?
+  fileName    String?
+  fileSize    Int?
+  venue       String?
+  eventDate   DateTime?
+  capacity    Int?
+  ticketsSold Int      @default(0)
+  views       Int      @default(0)
+  salesCount  Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([creatorId, slug])
+}
+
+model Order {
+  id                     String   @id @default(cuid())
+  creatorId              String
+  creator                Creator  @relation(fields: [creatorId], references: [id])
+  productId              String
+  buyerEmail             String
+  buyerName              String
+  amount                 Int
+  platformFee            Int
+  creatorEarning         Int
+  currency               String   @default("UGX")
+  status                 String   @default("pending") // pending, completed, failed, refunded
+  paymentMethod          String   @default("mtn_momo")
+  pesapalOrderTrackingId String?
+  pesapalTransactionId   String?
+  downloadToken          String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+}
+
+model PageView {
+  id        String   @id @default(cuid())
+  creatorId String
+  page      String
+  referrer  String?
+  createdAt DateTime @default(now())
+}
+
+model Donation {
+  id        String   @id @default(cuid())
+  creatorId String
+  donorEmail String
+  donorName  String
+  amount     Int
+  message    String   @default("")
+  anonymous  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+}
+
+model Withdrawal {
+  id          String   @id @default(cuid())
+  creatorId   String
+  amount      Int
+  status      String   @default("pending") // pending, approved, processing, completed, rejected
+  phoneNumber String
+  provider    String
+  createdAt   DateTime @default(now())
+  processedAt DateTime?
+}
+
+model Ticket {
+  id           String   @id @default(cuid())
+  orderId      String
+  productId    String
+  buyerEmail   String
+  buyerName    String
+  qrCode       String
+  checkedIn    Boolean  @default(false)
+  checkedInAt  DateTime?
+  createdAt    DateTime @default(now())
+}
