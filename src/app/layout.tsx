@@ -44,7 +44,7 @@ export const metadata: Metadata = {
     canonical: BASE_URL,
   },
   icons: {
-    icon: "/logo.svg",
+    icon: "/logo-new.png",
   },
   openGraph: {
     title: "Keevan Store — Create Your Online Store in Minutes",

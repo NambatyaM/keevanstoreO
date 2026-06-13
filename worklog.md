@@ -47,3 +47,28 @@ Stage Summary:
 - CallMeBot fully removed from all production code (.env, notifications.ts) and documentation scripts
 - SQL migrations provided for orders.product_id nullable fix and withdrawal status constraint
 - All screenshots captured and saved to /home/z/my-project/download/
+
+---
+Task ID: 3
+Agent: Main Agent
+Task: Fix CSS in screenshots, create better logo, full app preview
+
+Work Log:
+- Diagnosed that standalone build was missing static assets (CSS not loading in screenshots)
+- Copied .next/static and public to .next/standalone to fix CSS serving
+- Generated new professional logo using AI image generation (logo-new.png) — emerald green "K" lettermark
+- Replaced all "K" text-in-box logos across 9 files with proper Image component using logo-new.png
+- Updated favicon reference in layout.tsx from logo.svg to logo-new.png
+- Files updated with new logo: page.tsx, about, contact, terms, privacy, dashboard-sidebar, login, signup, site-footer
+- Temporarily disabled standalone output for dev server preview (CSS rendered properly)
+- Took full app screenshots with CSS rendering using agent-browser (dev server on port 3000)
+- All screenshots now show proper CSS styling: homepage (197KB), login (194KB), about (56KB), contact (61KB), etc.
+- Re-enabled standalone output for production builds
+- Rebuilt production build and recreated tar.gz with all changes (40MB)
+- Captured screenshots of all pages including store, 404, terms, privacy
+
+Stage Summary:
+- New logo created and integrated across all 9 component files
+- All screenshots now render with full CSS styling
+- Full app preview available with all pages captured
+- Codebase tar.gz updated with new logo and all recent changes

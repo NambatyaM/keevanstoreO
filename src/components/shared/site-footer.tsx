@@ -3,6 +3,7 @@
 // WhatsApp support replacing email-based contact
 // ============================================================
 import Link from "next/link";
+import Image from "next/image";
 import { MessageCircle } from "lucide-react";
 import { WHATSAPP_URLS, WHATSAPP_DISPLAY } from "@/components/shared/whatsapp-support";
 
@@ -75,9 +76,7 @@ export function SiteFooter({ variant = "default", creatorName, username }: SiteF
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
             <div className="flex items-center gap-4">
               <Link href="/" className="flex items-center gap-2" aria-label="Keevan Store Home">
-                <div className="h-6 w-6 rounded-md bg-emerald-500 flex items-center justify-center">
-                  <span className="text-white font-bold text-xs">K</span>
-                </div>
+                <Image src="/logo-new.png" alt="Keevan Store" width={24} height={24} className="rounded-md" />
                 <span className="text-sm font-medium text-foreground">Keevan Store</span>
               </Link>
             </div>

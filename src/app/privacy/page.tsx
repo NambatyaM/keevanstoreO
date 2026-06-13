@@ -4,6 +4,7 @@
 // ============================================================
 import type { Metadata } from "next";
 import Link from "next/link";
+import Image from "next/image";
 import { ArrowRight, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SiteFooter } from "@/components/shared/site-footer";
@@ -44,9 +45,7 @@ export default function PrivacyPolicyPage() {
       <header className="sticky top-0 z-50 bg-background/80 backdrop-blur-sm border-b">
         <nav className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between" aria-label="Main navigation">
           <Link href="/" className="flex items-center gap-2" aria-label="Keevan Store Home">
-            <div className="h-8 w-8 rounded-lg bg-emerald-500 flex items-center justify-center">
-              <span className="text-white font-bold text-sm">K</span>
-            </div>
+            <Image src="/logo-new.png" alt="Keevan Store" width={32} height={32} className="rounded-lg" />
             <span className="text-lg font-bold text-foreground">Keevan Store</span>
           </Link>
           <div className="flex items-center gap-2 sm:gap-3">

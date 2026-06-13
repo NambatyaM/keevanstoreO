@@ -5,6 +5,7 @@
 
 import { usePathname } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import {
   LayoutDashboard,
   Store,
@@ -59,9 +60,7 @@ function SidebarContent({ collapsed, onNavigate }: { collapsed: boolean; onNavig
     <div className="flex flex-col h-full">
       {/* Logo / Brand */}
       <div className={cn("flex items-center gap-2 px-4 py-4 border-b", collapsed ? "justify-center" : "")}>
-        <div className="h-8 w-8 rounded-lg bg-emerald-500 flex items-center justify-center flex-shrink-0">
-          <span className="text-white font-bold text-sm">K</span>
-        </div>
+        <Image src="/logo-new.png" alt="Keevan Store" width={32} height={32} className="rounded-lg flex-shrink-0" />
         {!collapsed && (
           <div className="flex flex-col">
             <span className="font-bold text-foreground text-sm">Keevan Store</span>
@@ -156,9 +155,7 @@ export function DashboardSidebar() {
       {/* Mobile Sidebar */}
       <div className="md:hidden fixed top-0 left-0 right-0 z-50 bg-background border-b px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div className="h-7 w-7 rounded-lg bg-emerald-500 flex items-center justify-center">
-            <span className="text-white font-bold text-xs">K</span>
-          </div>
+          <Image src="/logo-new.png" alt="Keevan Store" width={28} height={28} className="rounded-lg" />
           <span className="font-bold text-foreground text-sm">Keevan Store</span>
         </div>
         <Sheet>

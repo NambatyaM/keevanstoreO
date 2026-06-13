@@ -5,6 +5,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, Mail, Lock, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -52,9 +53,7 @@ export default function LoginPage() {
         {/* Brand */}
         <div className="text-center mb-8">
           <Link href="/" className="inline-flex items-center gap-2" aria-label="Back to Keevan Store home">
-            <div className="h-10 w-10 rounded-xl bg-emerald-500 flex items-center justify-center">
-              <span className="text-white font-bold text-lg">K</span>
-            </div>
+            <Image src="/logo-new.png" alt="Keevan Store" width={40} height={40} className="rounded-xl" />
             <span className="text-2xl font-bold text-foreground">Keevan Store</span>
           </Link>
           <p className="text-muted-foreground mt-2 text-sm">
