@@ -1,0 +1,711 @@
+     1→#!/usr/bin/env python3
+     2→"""
+     3→Generate the KEEVAN STORE — Manual Actions Required PDF document.
+     4→Professional layout with emerald green accents.
+     5→"""
+     6→
+     7→from reportlab.lib.pagesizes import A4
+     8→from reportlab.lib.units import mm, cm
+     9→from reportlab.lib.colors import HexColor, white, black
+    10→from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    11→from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_JUSTIFY
+    12→from reportlab.platypus import (
+    13→    SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
+    14→    PageBreak, KeepTogether, ListFlowable, ListItem, HRFlowable
+    15→)
+    16→from reportlab.platypus.flowables import Flowable
+    17→from reportlab.pdfbase import pdfmetrics
+    18→from reportlab.pdfbase.ttfonts import TTFont
+    19→import os
+    20→
+    21→# ── Brand Colours ──────────────────────────────────────────────────
+    22→EMERALD_DARK   = HexColor("#065f46")   # darkest green
+    23→EMERALD        = HexColor("#047857")   # primary emerald
+    24→EMERALD_MED    = HexColor("#059669")   # medium emerald
+    25→EMERALD_LIGHT  = HexColor("#10b981")   # lighter emerald
+    26→EMERALD_PALE   = HexColor("#d1fae5")   # very light green bg
+    27→EMERALD_BG     = HexColor("#ecfdf5")   # faintest green bg
+    28→TEXT_DARK      = HexColor("#1f2937")   # near-black for body
+    29→TEXT_MED       = HexColor("#4b5563")   # grey for secondary text
+    30→TEXT_LIGHT     = HexColor("#6b7280")   # lighter grey
+    31→BORDER_GREY    = HexColor("#e5e7eb")   # subtle border
+    32→WHITE          = HexColor("#ffffff")
+    33→CHECK_GREEN    = HexColor("#34d399")   # checkbox green
+    34→
+    35→OUTPUT_PATH = "/home/z/my-project/download/keevan-store-manual-actions.pdf"
+    36→PAGE_W, PAGE_H = A4
+    37→
+    38→# ── Custom Flowables ───────────────────────────────────────────────
+    39→
+    40→class SectionHeader(Flowable):
+    41→    """A full-width emerald banner with the section number and title."""
+    42→    def __init__(self, number, title, width=None):
+    43→        Flowable.__init__(self)
+    44→        self.number = number
+    45→        self.title = title
+    46→        self._width = width or (PAGE_W - 50*mm)
+    47→        self.height = 18*mm
+    48→
+    49→    def wrap(self, availWidth, availHeight):
+    50→        self._width = min(self._width, availWidth)
+    51→        return (self._width, self.height)
+    52→
+    53→    def draw(self):
+    54→        c = self.canv
+    55→        w, h = self._width, self.height
+    56→        # Emerald background with rounded corners
+    57→        c.setFillColor(EMERALD)
+    58→        c.roundRect(0, 0, w, h, 4*mm, fill=1, stroke=0)
+    59→        # Number circle
+    60→        cx, cy = 13*mm, h/2
+    61→        c.setFillColor(WHITE)
+    62→        c.circle(cx, cy, 6.5*mm, fill=1, stroke=0)
+    63→        c.setFillColor(EMERALD)
+    64→        c.setFont("Helvetica-Bold", 16)
+    65→        c.drawCentredString(cx, cy - 3*mm, str(self.number))
+    66→        # Title text
+    67→        c.setFillColor(WHITE)
+    68→        c.setFont("Helvetica-Bold", 14)
+    69→        c.drawString(24*mm, cy - 3.5*mm, self.title)
+    70→
+    71→
+    72→class WarningBox(Flowable):
+    73→    """A pale-red/orange warning callout box."""
+    74→    def __init__(self, text, width=None):
+    75→        Flowable.__init__(self)
+    76→        self.text = text
+    77→        self._width = width or (PAGE_W - 50*mm)
+    78→        # Estimate height
+    79→        self._height = max(12*mm, 8*mm + len(text) // 70 * 5*mm)
+    80→
+    81→    def wrap(self, availWidth, availHeight):
+    82→        self._width = min(self._width, availWidth)
+    83→        return (self._width, self._height)
+    84→
+    85→    def draw(self):
+    86→        c = self.canv
+    87→        w, h = self._width, self._height
+    88→        # Amber-tinted background
+    89→        c.setFillColor(HexColor("#fffbeb"))
+    90→        c.roundRect(0, 0, w, h, 3*mm, fill=1, stroke=0)
+    91→        # Left accent bar
+    92→        c.setFillColor(HexColor("#f59e0b"))
+    93→        c.roundRect(0, 0, 4*mm, h, 2*mm, fill=1, stroke=0)
+    94→        # Icon / text
+    95→        c.setFillColor(HexColor("#92400e"))
+    96→        c.setFont("Helvetica-Bold", 9)
+    97→        c.drawString(7*mm, h - 6*mm, "⚠  IMPORTANT")
+    98→        c.setFont("Helvetica", 8.5)
+    99→        # Wrap the text roughly
+   100→        lines = []
+   101→        words = self.text.split()
+   102→        line = ""
+   103→        max_chars = int((w - 12*mm) / (4.2))
+   104→        for word in words:
+   105→            if len(line) + len(word) + 1 > max_chars:
+   106→                lines.append(line)
+   107→                line = word
+   108→            else:
+   109→                line = line + " " + word if line else word
+   110→        if line:
+   111→            lines.append(line)
+   112→        y = h - 6*mm - 4*mm
+   113→        for ln in lines:
+   114→            c.drawString(7*mm, y, ln)
+   115→            y -= 4*mm
+   116→
+   117→
+   118→class CheckboxItem(Flowable):
+   119→    """A single checklist row with a styled checkbox."""
+   120→    def __init__(self, text, width=None):
+   121→        Flowable.__init__(self)
+   122→        self.text = text
+   123→        self._width = width or (PAGE_W - 50*mm)
+   124→        self.height = 8*mm
+   125→
+   126→    def wrap(self, availWidth, availHeight):
+   127→        self._width = min(self._width, availWidth)
+   128→        return (self._width, self.height)
+   129→
+   130→    def draw(self):
+   131→        c = self.canv
+   132→        # Checkbox
+   133→        bx, by = 3*mm, 2*mm
+   134→        c.setStrokeColor(EMERALD_MED)
+   135→        c.setLineWidth(1.2)
+   136→        c.roundRect(bx, by, 4.5*mm, 4.5*mm, 1*mm, fill=0, stroke=1)
+   137→        # Text
+   138→        c.setFillColor(TEXT_DARK)
+   139→        c.setFont("Helvetica", 10)
+   140→        c.drawString(10*mm, 3*mm, self.text)
+   141→
+   142→
+   143→class DividerLine(Flowable):
+   144→    """A thin horizontal divider."""
+   145→    def __init__(self, width=None, color=BORDER_GREY):
+   146→        Flowable.__init__(self)
+   147→        self._width = width or (PAGE_W - 50*mm)
+   148→        self.height = 2*mm
+   149→        self.color = color
+   150→
+   151→    def wrap(self, availWidth, availHeight):
+   152→        self._width = min(self._width, availWidth)
+   153→        return (self._width, self.height)
+   154→
+   155→    def draw(self):
+   156→        c = self.canv
+   157→        c.setStrokeColor(self.color)
+   158→        c.setLineWidth(0.5)
+   159→        c.line(0, 1*mm, self._width, 1*mm)
+   160→
+   161→
+   162→# ── Page Decorations ───────────────────────────────────────────────
+   163→
+   164→def page_background(canvas, doc):
+   165→    """Draws the top emerald stripe and footer on every page."""
+   166→    canvas.saveState()
+   167→    # Top accent bar
+   168→    canvas.setFillColor(EMERALD_DARK)
+   169→    canvas.rect(0, PAGE_H - 6*mm, PAGE_W, 6*mm, fill=1, stroke=0)
+   170→    # Thin secondary line
+   171→    canvas.setFillColor(EMERALD)
+   172→    canvas.rect(0, PAGE_H - 8*mm, PAGE_W, 2*mm, fill=1, stroke=0)
+   173→    # Footer
+   174→    canvas.setFillColor(TEXT_LIGHT)
+   175→    canvas.setFont("Helvetica", 7.5)
+   176→    canvas.drawString(25*mm, 10*mm, "KEEVAN STORE — Manual Actions Required")
+   177→    canvas.drawRightString(PAGE_W - 25*mm, 10*mm, f"Page {doc.page}")
+   178→    # Footer line
+   179→    canvas.setStrokeColor(BORDER_GREY)
+   180→    canvas.setLineWidth(0.4)
+   181→    canvas.line(25*mm, 14*mm, PAGE_W - 25*mm, 14*mm)
+   182→    canvas.restoreState()
+   183→
+   184→
+   185→def first_page_background(canvas, doc):
+   186→    """Custom decoration for the title page."""
+   187→    canvas.saveState()
+   188→    # Top accent bar
+   189→    canvas.setFillColor(EMERALD_DARK)
+   190→    canvas.rect(0, PAGE_H - 6*mm, PAGE_W, 6*mm, fill=1, stroke=0)
+   191→    canvas.setFillColor(EMERALD)
+   192→    canvas.rect(0, PAGE_H - 8*mm, PAGE_W, 2*mm, fill=1, stroke=0)
+   193→    # Footer
+   194→    canvas.setFillColor(TEXT_LIGHT)
+   195→    canvas.setFont("Helvetica", 7.5)
+   196→    canvas.drawString(25*mm, 10*mm, "KEEVAN STORE — Manual Actions Required")
+   197→    canvas.drawRightString(PAGE_W - 25*mm, 10*mm, f"Page {doc.page}")
+   198→    canvas.setStrokeColor(BORDER_GREY)
+   199→    canvas.setLineWidth(0.4)
+   200→    canvas.line(25*mm, 14*mm, PAGE_W - 25*mm, 14*mm)
+   201→    canvas.restoreState()
+   202→
+   203→
+   204→# ── Styles ─────────────────────────────────────────────────────────
+   205→
+   206→styles = getSampleStyleSheet()
+   207→
+   208→sTitle = ParagraphStyle(
+   209→    "DocTitle", parent=styles["Title"],
+   210→    fontName="Helvetica-Bold", fontSize=26, leading=32,
+   211→    textColor=EMERALD_DARK, alignment=TA_LEFT,
+   212→    spaceAfter=4*mm,
+   213→)
+   214→sSubtitle = ParagraphStyle(
+   215→    "DocSubtitle", parent=styles["Normal"],
+   216→    fontName="Helvetica", fontSize=11, leading=16,
+   217→    textColor=TEXT_MED, alignment=TA_LEFT,
+   218→    spaceAfter=8*mm,
+   219→)
+   220→sIntro = ParagraphStyle(
+   221→    "Intro", parent=styles["Normal"],
+   222→    fontName="Helvetica", fontSize=10, leading=15,
+   223→    textColor=TEXT_DARK, alignment=TA_JUSTIFY,
+   224→    spaceAfter=4*mm,
+   225→)
+   226→sBody = ParagraphStyle(
+   227→    "Body", parent=styles["Normal"],
+   228→    fontName="Helvetica", fontSize=10, leading=15,
+   229→    textColor=TEXT_DARK, alignment=TA_JUSTIFY,
+   230→    spaceAfter=3*mm,
+   231→)
+   232→sBodyBold = ParagraphStyle(
+   233→    "BodyBold", parent=sBody,
+   234→    fontName="Helvetica-Bold",
+   235→)
+   236→sStep = ParagraphStyle(
+   237→    "Step", parent=styles["Normal"],
+   238→    fontName="Helvetica", fontSize=9.8, leading=14.5,
+   239→    textColor=TEXT_DARK, alignment=TA_LEFT,
+   240→    leftIndent=8*mm,
+   241→    spaceAfter=2.2*mm,
+   242→)
+   243→sStepNum = ParagraphStyle(
+   244→    "StepNum", parent=sStep,
+   245→    fontName="Helvetica-Bold",
+   246→    textColor=EMERALD,
+   247→)
+   248→sSubStep = ParagraphStyle(
+   249→    "SubStep", parent=sStep,
+   250→    leftIndent=16*mm,
+   251→    fontSize=9.3,
+   252→    spaceAfter=1.8*mm,
+   253→)
+   254→sCallout = ParagraphStyle(
+   255→    "Callout", parent=styles["Normal"],
+   256→    fontName="Helvetica-Oblique", fontSize=9.5, leading=14,
+   257→    textColor=EMERALD_DARK, alignment=TA_LEFT,
+   258→    leftIndent=6*mm, rightIndent=6*mm,
+   259→    spaceBefore=3*mm, spaceAfter=3*mm,
+   260→    backColor=EMERALD_BG,
+   261→    borderPadding=(3*mm, 4*mm, 3*mm, 4*mm),
+   262→)
+   263→sSectionNote = ParagraphStyle(
+   264→    "SectionNote", parent=styles["Normal"],
+   265→    fontName="Helvetica-Oblique", fontSize=9.5, leading=14,
+   266→    textColor=HexColor("#92400e"), alignment=TA_LEFT,
+   267→    leftIndent=6*mm, rightIndent=6*mm,
+   268→    spaceBefore=2*mm, spaceAfter=3*mm,
+   269→)
+   270→sChecklistHead = ParagraphStyle(
+   271→    "ChecklistHead", parent=styles["Normal"],
+   272→    fontName="Helvetica-Bold", fontSize=13, leading=18,
+   273→    textColor=EMERALD_DARK,
+   274→    spaceAfter=4*mm,
+   275→)
+   276→
+   277→# ── Helper Functions ───────────────────────────────────────────────
+   278→
+   279→def step_html(num, text):
+   280→    """Return a Paragraph for a numbered step with the number in emerald."""
+   281→    return Paragraph(
+   282→        f'<font name="Helvetica-Bold" color="{EMERALD.hexval()}">{num}.</font>  {text}',
+   283→        sStep
+   284→    )
+   285→
+   286→def substep_html(letter, text):
+   287→    """Return a Paragraph for a sub-step."""
+   288→    return Paragraph(
+   289→        f'<font name="Helvetica-Bold" color="{EMERALD_MED.hexval()}">{letter})</font>  {text}',
+   290→        sSubStep
+   291→    )
+   292→
+   293→def body(text):
+   294→    return Paragraph(text, sBody)
+   295→
+   296→def bold_body(text):
+   297→    return Paragraph(text, sBodyBold)
+   298→
+   299→def callout(text):
+   300→    return Paragraph(text, sCallout)
+   301→
+   302→def note(text):
+   303→    return Paragraph(text, sSectionNote)
+   304→
+   305→def spc(h=3*mm):
+   306→    return Spacer(1, h)
+   307→
+   308→# ── Build the Story ────────────────────────────────────────────────
+   309→
+   310→story = []
+   311→
+   312→# ─── Title Page ────────────────────────────────────────────────────
+   313→story.append(Spacer(1, 30*mm))
+   314→story.append(Paragraph("KEEVAN STORE", sTitle))
+   315→
+   316→# Green accent line under title
+   317→story.append(HRFlowable(
+   318→    width="40%", thickness=2.5, color=EMERALD,
+   319→    spaceAfter=5*mm, spaceBefore=0, hAlign='LEFT'
+   320→))
+   321→
+   322→story.append(Paragraph(
+   323→    "Manual Actions Required",
+   324→    ParagraphStyle("SubTitle2", parent=sTitle, fontSize=20, leading=26, textColor=EMERALD)
+   325→))
+   326→story.append(spc(8*mm))
+   327→story.append(Paragraph(
+   328→    "A step-by-step guide for completing setup tasks that cannot be done within the "
+   329→    "codebase itself. Each item explains <b>what</b> needs to be done, <b>why</b> it matters, "
+   330→    "and <b>exactly how</b> to do it — no technical jargon left unexplained.",
+   331→    sIntro
+   332→))
+   333→story.append(spc(6*mm))
+   334→
+   335→# Metadata table
+   336→meta_data = [
+   337→    ["Document:", "Manual Actions Required"],
+   338→    ["Project:", "Keevan Store v2"],
+   339→    ["Prepared:", "2026-03-04"],
+   340→    ["Status:", "Action Required"],
+   341→]
+   342→meta_table = Table(meta_data, colWidths=[35*mm, 100*mm])
+   343→meta_table.setStyle(TableStyle([
+   344→    ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+   345→    ('FONTNAME', (1, 0), (1, -1), 'Helvetica'),
+   346→    ('FONTSIZE', (0, 0), (-1, -1), 9.5),
+   347→    ('TEXTCOLOR', (0, 0), (0, -1), EMERALD_DARK),
+   348→    ('TEXTCOLOR', (1, 0), (1, -1), TEXT_DARK),
+   349→    ('BOTTOMPADDING', (0, 0), (-1, -1), 3*mm),
+   350→    ('TOPPADDING', (0, 0), (-1, -1), 1.5*mm),
+   351→    ('LINEBELOW', (0, 0), (-1, -2), 0.3, BORDER_GREY),
+   352→    ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+   353→]))
+   354→story.append(meta_table)
+   355→
+   356→story.append(PageBreak())
+   357→
+   358→# ─── Section 1: WhatsApp Notifications ────────────────────────────
+   359→story.append(SectionHeader(1, "Set Up WhatsApp Notifications (CallMeBot)"))
+   360→story.append(spc(4*mm))
+   361→
+   362→story.append(body(
+   363→    "Right now, when someone submits the contact form or requests a withdrawal, the system "
+   364→    "tries to send you a WhatsApp notification — but it <b>silently fails</b> because the "
+   365→    "CallMeBot API key is not configured."
+   366→))
+   367→story.append(spc(2*mm))
+   368→story.append(bold_body("What to do:"))
+   369→story.append(spc(1*mm))
+   370→
+   371→steps_1 = [
+   372→    "Open WhatsApp on your phone",
+   373→    'Send a message saying <font name="Courier" size="9">"I allow callmebot to send me messages"</font> to the number <b>+34 644 52 74 88</b>',
+   374→    "Wait about 30 seconds — you will receive a reply with your API key",
+   375→    "Copy that API key",
+   376→    "Open your <b>.env</b> file (this is the file where secret settings live on your server)",
+   377→    'Find the line that says <font name="Courier" size="9">CALLMEBOT_APIKEY=</font> (it is currently empty)',
+   378→    'Paste your API key after the <font name="Courier" size="9">=</font> sign',
+   379→    "Save the file",
+   380→    "Restart your server (ask your developer or hosting provider to do this)",
+   381→]
+   382→for i, s in enumerate(steps_1, 1):
+   383→    story.append(step_html(i, s))
+   384→
+   385→story.append(spc(3*mm))
+   386→story.append(callout(
+   387→    "After this, you will receive WhatsApp messages whenever someone contacts you or requests a withdrawal."
+   388→))
+   389→
+   390→story.append(spc(4*mm))
+   391→story.append(DividerLine())
+   392→story.append(spc(4*mm))
+   393→
+   394→# ─── Section 2: Pesapal IPN URL ───────────────────────────────────
+   395→story.append(SectionHeader(2, "Register Your Pesapal IPN URL"))
+   396→story.append(spc(4*mm))
+   397→
+   398→story.append(body(
+   399→    "Pesapal needs to know where to send payment confirmations. This is called the "
+   400→    '<b>"IPN URL"</b> and it must be registered in your Pesapal merchant dashboard.'
+   401→))
+   402→story.append(spc(2*mm))
+   403→story.append(bold_body("What to do:"))
+   404→story.append(spc(1*mm))
+   405→
+   406→steps_2 = [
+   407→    'Log in to your Pesapal merchant dashboard at <font name="Courier" size="9">https://developer.pesapal.com</font>',
+   408→    'Go to <b>"IPN Settings"</b> or <b>"Webhook Configuration"</b>',
+   409→    'Enter this URL: <font name="Courier" size="9" color="' + EMERALD.hexval() + '">https://keevanstore.in/api/pesapal/ipn</font>',
+   410→    'Select <b>"POST"</b> as the method',
+   411→    'Save the settings',
+   412→    'Pesapal will send a test notification — check your server logs to confirm it was received',
+   413→]
+   414→for i, s in enumerate(steps_2, 1):
+   415→    story.append(step_html(i, s))
+   416→
+   417→story.append(spc(3*mm))
+   418→story.append(note(
+   419→    "Without this, Pesapal will not notify your site when payments complete, and orders will "
+   420→    'stay in "pending" status forever.'
+   421→))
+   422→
+   423→story.append(spc(4*mm))
+   424→story.append(DividerLine())
+   425→story.append(spc(4*mm))
+   426→
+   427→# ─── Section 3: Cloudflare R2 CORS ────────────────────────────────
+   428→story.append(SectionHeader(3, "Configure Cloudflare R2 Bucket CORS"))
+   429→story.append(spc(4*mm))
+   430→
+   431→story.append(body(
+   432→    "If creators are having trouble uploading files (photos, product files), it might be because "
+   433→    "your R2 bucket is not allowing uploads from your website domain."
+   434→))
+   435→story.append(spc(2*mm))
+   436→story.append(bold_body("What to do:"))
+   437→story.append(spc(1*mm))
+   438→
+   439→steps_3 = [
+   440→    'Log in to your Cloudflare dashboard at <font name="Courier" size="9">https://dash.cloudflare.com</font>',
+   441→    'Go to <b>"R2 Object Storage"</b> and click on your bucket',
+   442→    'Go to the <b>"Settings"</b> tab',
+   443→    'Find <b>"CORS Policy"</b> and click <b>"Edit"</b>',
+   444→    'Add a rule with these settings:',
+   445→]
+   446→for i, s in enumerate(steps_3, 1):
+   447→    story.append(step_html(i, s))
+   448→
+   449→# CORS rule sub-table
+   450→cors_data = [
+   451→    ["Setting", "Value"],
+   452→    ["Allowed Origins", "https://keevanstore.in"],
+   453→    ["Allowed Methods", "GET, PUT, POST, DELETE"],
+   454→    ["Allowed Headers", "*"],
+   455→    ["Max Age", "86400"],
+   456→]
+   457→cors_table = Table(cors_data, colWidths=[45*mm, 95*mm])
+   458→cors_table.setStyle(TableStyle([
+   459→    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+   460→    ('FONTSIZE', (0, 0), (-1, -1), 9),
+   461→    ('BACKGROUND', (0, 0), (-1, 0), EMERALD),
+   462→    ('TEXTCOLOR', (0, 0), (-1, 0), WHITE),
+   463→    ('BACKGROUND', (0, 1), (-1, -1), EMERALD_BG),
+   464→    ('ROWBACKGROUNDS', (0, 1), (-1, -1), [EMERALD_BG, WHITE]),
+   465→    ('GRID', (0, 0), (-1, -1), 0.4, BORDER_GREY),
+   466→    ('TOPPADDING', (0, 0), (-1, -1), 2.5*mm),
+   467→    ('BOTTOMPADDING', (0, 0), (-1, -1), 2.5*mm),
+   468→    ('LEFTPADDING', (0, 0), (-1, -1), 3*mm),
+   469→    ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+   470→]))
+   471→story.append(spc(1*mm))
+   472→story.append(cors_table)
+   473→story.append(step_html(6, "Save the rule"))
+   474→
+   475→story.append(spc(4*mm))
+   476→story.append(DividerLine())
+   477→story.append(spc(4*mm))
+   478→
+   479→# ─── Section 4: Supabase RLS ─────────────────────────────────────
+   480→story.append(SectionHeader(4, "Confirm Supabase RLS Is Enabled"))
+   481→story.append(spc(4*mm))
+   482→
+   483→story.append(body(
+   484→    "Row Level Security (RLS) is the feature that prevents one creator from seeing or editing "
+   485→    "another creator's data. It is defined in the code, but it must also be <b>enabled in the "
+   486→    "Supabase dashboard</b>."
+   487→))
+   488→story.append(spc(2*mm))
+   489→story.append(bold_body("What to do:"))
+   490→story.append(spc(1*mm))
+   491→
+   492→steps_4 = [
+   493→    'Log in to your Supabase dashboard at <font name="Courier" size="9">https://supabase.com</font>',
+   494→    'Select your project',
+   495→    'Go to the <b>"Table Editor"</b>',
+   496→    'For each table listed below:',
+   497→]
+   498→for i, s in enumerate(steps_4, 1):
+   499→    story.append(step_html(i, s))
+   500→
+   501→# Table list
+   502→tables_4 = [
+   503→    "creators", "products", "events", "orders",
+   504→    "page_views", "donations", "withdrawals", "tickets", "download_sessions"
+   505→]
+   506→for t in tables_4:
+   507→    story.append(substep_html("a" if t == "creators" else "·", f"Table: <font name='Courier' size='9'>{t}</font>"))
+   508→
+   509→story.append(spc(1*mm))
+   510→substeps_4 = [
+   511→    "Click on the table name",
+   512→    "Click the <b>\"RLS\"</b> tab at the top",
+   513→    'Make sure <b>"Enable RLS"</b> is turned <b>ON</b>',
+   514→    "Check that the policies listed match those in the file <font name='Courier' size='9'>supabase/schema.sql</font>",
+   515→]
+   516→for letter, s in zip(["a", "b", "c", "d"], substeps_4):
+   517→    story.append(substep_html(letter, s))
+   518→
+   519→story.append(spc(3*mm))
+   520→story.append(note(
+   521→    "If RLS is not enabled on any table, anyone could potentially read or modify other creators' data."
+   522→))
+   523→
+   524→story.append(spc(4*mm))
+   525→story.append(DividerLine())
+   526→story.append(spc(4*mm))
+   527→
+   528→# ─── Section 5: SQL Schema Setup ─────────────────────────────────
+   529→story.append(SectionHeader(5, "Run the SQL Schema Setup"))
+   530→story.append(spc(4*mm))
+   531→
+   532→story.append(body(
+   533→    "The database schema (tables, indexes, RLS policies, and helper functions) needs to be applied "
+   534→    "to your Supabase database. This is a <b>one-time setup</b>."
+   535→))
+   536→story.append(spc(2*mm))
+   537→story.append(bold_body("What to do:"))
+   538→story.append(spc(1*mm))
+   539→
+   540→steps_5 = [
+   541→    "Log in to your Supabase dashboard",
+   542→    'Go to <b>"SQL Editor"</b>',
+   543→    "Copy the entire contents of the file <font name='Courier' size='9'>supabase/schema.sql</font> from your project",
+   544→    "Paste it into the SQL Editor",
+   545→    'Click <b>"Run"</b>',
+   546→    "Check for any error messages — there should be none",
+   547→    'Go to <b>"Table Editor"</b> and confirm all 8 tables exist',
+   548→]
+   549→for i, s in enumerate(steps_5, 1):
+   550→    story.append(step_html(i, s))
+   551→
+   552→story.append(spc(3*mm))
+   553→story.append(bold_body("Important — New helper functions added during the audit:"))
+   554→
+   555→# Table style for cell content
+   556→sFuncCell = ParagraphStyle("FuncCell", parent=styles["Normal"],
+   557→    fontName="Courier", fontSize=8.5, leading=11,
+   558→    textColor=EMERALD_DARK)
+   559→sPurposeCell = ParagraphStyle("PurposeCell", parent=styles["Normal"],
+   560→    fontName="Helvetica", fontSize=8.5, leading=11,
+   561→    textColor=TEXT_DARK)
+   562→
+   563→helper_funcs = [
+   564→    ("increment_creator_earnings", "prevents race conditions when multiple payments arrive at the same time"),
+   565→    ("increment_product_sales", "atomic sales counter"),
+   566→    ("increment_event_tickets", "atomic ticket counter"),
+   567→    ("process_donation", "atomic donation processing"),
+   568→    ("increment_creator_views", "atomic view counter"),
+   569→]
+   570→func_data = [
+   571→    [Paragraph("<b>Function</b>", ParagraphStyle("th", parent=sPurposeCell, textColor=WHITE, fontName="Helvetica-Bold")),
+   572→     Paragraph("<b>Purpose</b>", ParagraphStyle("th2", parent=sPurposeCell, textColor=WHITE, fontName="Helvetica-Bold"))]
+   573→] + [
+   574→    [Paragraph(f, sFuncCell), Paragraph(p, sPurposeCell)]
+   575→    for f, p in helper_funcs
+   576→]
+   577→func_table = Table(func_data, colWidths=[60*mm, 80*mm])
+   578→func_table.setStyle(TableStyle([
+   579→    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+   580→    ('FONTSIZE', (0, 0), (-1, -1), 8.5),
+   581→    ('BACKGROUND', (0, 0), (-1, 0), EMERALD),
+   582→    ('TEXTCOLOR', (0, 0), (-1, 0), WHITE),
+   583→    ('ROWBACKGROUNDS', (0, 1), (-1, -1), [EMERALD_BG, WHITE]),
+   584→    ('GRID', (0, 0), (-1, -1), 0.4, BORDER_GREY),
+   585→    ('TOPPADDING', (0, 0), (-1, -1), 2*mm),
+   586→    ('BOTTOMPADDING', (0, 0), (-1, -1), 2*mm),
+   587→    ('LEFTPADDING', (0, 0), (-1, -1), 3*mm),
+   588→    ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+   589→]))
+   590→story.append(spc(2*mm))
+   591→story.append(func_table)
+   592→
+   593→story.append(spc(4*mm))
+   594→story.append(DividerLine())
+   595→story.append(spc(4*mm))
+   596→
+   597→# ─── Section 6: Real Pesapal Payment Test ─────────────────────────
+   598→story.append(SectionHeader(6, "Test With a Real Pesapal Payment"))
+   599→story.append(spc(4*mm))
+   600→
+   601→story.append(body(
+   602→    "The checkout flow has been fixed and tested in mock mode, but it is <b>essential to test with "
+   603→    "a real mobile money payment</b> before going live."
+   604→))
+   605→story.append(spc(2*mm))
+   606→story.append(bold_body("What to do:"))
+   607→story.append(spc(1*mm))
+   608→
+   609→steps_6 = [
+   610→    "Make sure your Pesapal account is in <b>LIVE mode</b> (not sandbox)",
+   611→    "Open your store as a buyer would",
+   612→    'Click <b>"Buy Now"</b> on a product',
+   613→    "Enter your name and email",
+   614→    'Select <b>"MTN Mobile Money"</b> as the payment method',
+   615→    "Complete the payment on the Pesapal page using your phone",
+   616→    "After payment, you should be redirected to the success page",
+   617→    "Check that the download link works",
+   618→    "Check the creator's dashboard to confirm the balance increased by <b>90%</b> of the purchase price",
+   619→]
+   620→for i, s in enumerate(steps_6, 1):
+   621→    story.append(step_html(i, s))
+   622→
+   623→story.append(spc(4*mm))
+   624→story.append(DividerLine())
+   625→story.append(spc(4*mm))
+   626→
+   627→# ─── Section 7: Verify Admin Access ──────────────────────────────
+   628→story.append(SectionHeader(7, "Verify Admin Access"))
+   629→story.append(spc(4*mm))
+   630→
+   631→story.append(body(
+   632→    "The admin dashboard is now properly protected. Make sure your admin account works correctly."
+   633→))
+   634→story.append(spc(2*mm))
+   635→story.append(bold_body("What to do:"))
+   636→story.append(spc(1*mm))
+   637→
+   638→steps_7 = [
+   639→    "Log in with your admin email (<font name='Courier' size='9'>nkevinmegan@gmail.com</font>) and password",
+   640→    "You should be taken to the regular dashboard first",
+   641→    "Navigate to <font name='Courier' size='9'>/admin</font> in your browser",
+   642→    "You should see the admin dashboard with platform stats",
+   643→    "Try logging in with a non-admin account and navigating to <font name='Courier' size='9'>/admin</font> — you should be redirected to the regular dashboard",
+   644→]
+   645→for i, s in enumerate(steps_7, 1):
+   646→    story.append(step_html(i, s))
+   647→
+   648→story.append(spc(4*mm))
+   649→story.append(DividerLine())
+   650→story.append(spc(4*mm))
+   651→
+   652→# ─── Section 8: Production Deployment Checklist ──────────────────
+   653→story.append(SectionHeader(8, "Production Deployment Checklist"))
+   654→story.append(spc(4*mm))
+   655→
+   656→story.append(body(
+   657→    "Before going live, confirm all of these are set up on your production server:"
+   658→))
+   659→story.append(spc(3*mm))
+   660→
+   661→checklist_items = [
+   662→    "All environment variables from .env are set on the production server (never commit .env to git)",
+   663→    "The domain keevanstore.in is pointing to your server",
+   664→    "SSL/HTTPS is enabled (required for Pesapal and secure cookies)",
+   665→    "The server is running the production build (not development mode)",
+   666→    "File uploads are working (R2 bucket is accessible)",
+   667→    "Database schema has been applied",
+   668→    "Pesapal IPN URL is registered",
+   669→    "WhatsApp notifications are working (CallMeBot API key is set)",
+   670→    "A real payment test has been completed successfully",
+   671→]
+   672→for item in checklist_items:
+   673→    story.append(CheckboxItem(item))
+   674→
+   675→story.append(spc(8*mm))
+   676→
+   677→# ─── End Mark ─────────────────────────────────────────────────────
+   678→story.append(HRFlowable(
+   679→    width="30%", thickness=2, color=EMERALD,
+   680→    spaceAfter=4*mm, spaceBefore=2*mm, hAlign='CENTER'
+   681→))
+   682→story.append(Paragraph(
+   683→    "End of Manual Actions",
+   684→    ParagraphStyle("EndMark", parent=sBody, alignment=TA_CENTER,
+   685→                   fontName="Helvetica-Bold", fontSize=10, textColor=EMERALD)
+   686→))
+   687→story.append(Paragraph(
+   688→    "Complete all items above before launching to production.",
+   689→    ParagraphStyle("EndSub", parent=sBody, alignment=TA_CENTER,
+   690→                   fontName="Helvetica-Oblique", fontSize=9, textColor=TEXT_LIGHT)
+   691→))
+   692→
+   693→# ── Build the PDF ──────────────────────────────────────────────────
+   694→
+   695→doc = SimpleDocTemplate(
+   696→    OUTPUT_PATH,
+   697→    pagesize=A4,
+   698→    topMargin=16*mm,
+   699→    bottomMargin=20*mm,
+   700→    leftMargin=25*mm,
+   701→    rightMargin=25*mm,
+   702→    title="KEEVAN STORE — Manual Actions Required",
+   703→    author="Keevan Store",
+   704→    subject="Manual setup actions for production deployment",
+   705→)
+   706→
+   707→doc.build(story, onFirstPage=first_page_background, onLaterPages=page_background)
+   708→
+   709→print(f"✅ PDF generated successfully: {OUTPUT_PATH}")
+   710→print(f"   File size: {os.path.getsize(OUTPUT_PATH) / 1024:.1f} KB")
+   711→

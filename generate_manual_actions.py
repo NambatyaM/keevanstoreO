@@ -356,35 +356,33 @@ story.append(meta_table)
 story.append(PageBreak())
 
 # ─── Section 1: WhatsApp Notifications ────────────────────────────
-story.append(SectionHeader(1, "Set Up WhatsApp Notifications (CallMeBot)"))
+story.append(SectionHeader(1, "WhatsApp Support & Notifications"))
 story.append(spc(4*mm))
 
 story.append(body(
-    "Right now, when someone submits the contact form or requests a withdrawal, the system "
-    "tries to send you a WhatsApp notification — but it <b>silently fails</b> because the "
-    "CallMeBot API key is not configured."
+    "Keevan Store uses <b>direct WhatsApp links</b> for customer support and admin notifications. "
+    "No third-party bot (like CallMeBot) is required. When customers click the WhatsApp support "
+    "button on the site, they are taken directly to a WhatsApp chat with the admin number. "
+    "Admin notifications (new orders, withdrawals, contact form submissions) are logged to the "
+    "server console with follow-up WhatsApp links."
 ))
 story.append(spc(2*mm))
-story.append(bold_body("What to do:"))
+story.append(bold_body("How it works:"))
 story.append(spc(1*mm))
 
 steps_1 = [
-    "Open WhatsApp on your phone",
-    'Send a message saying <font name="Courier" size="9">"I allow callmebot to send me messages"</font> to the number <b>+34 644 52 74 88</b>',
-    "Wait about 30 seconds — you will receive a reply with your API key",
-    "Copy that API key",
-    "Open your <b>.env</b> file (this is the file where secret settings live on your server)",
-    'Find the line that says <font name="Courier" size="9">CALLMEBOT_APIKEY=</font> (it is currently empty)',
-    'Paste your API key after the <font name="Courier" size="9">=</font> sign',
-    "Save the file",
-    "Restart your server (ask your developer or hosting provider to do this)",
+    "Customer clicks the WhatsApp support button on any store page",
+    'They are redirected to <font name="Courier" size="9">wa.me/256768345905</font> with a pre-filled message',
+    "Admin receives the message directly in WhatsApp — no API key needed",
+    'For admin notifications (withdrawals, contact forms), check the admin dashboard at <font name="Courier" size="9">keevanstore.in/admin</font>',
+    "Server logs also print notification messages with follow-up WhatsApp links",
 ]
 for i, s in enumerate(steps_1, 1):
     story.append(step_html(i, s))
 
 story.append(spc(3*mm))
 story.append(callout(
-    "After this, you will receive WhatsApp messages whenever someone contacts you or requests a withdrawal."
+    "No CallMeBot or third-party WhatsApp bot is needed. All communication goes through direct WhatsApp links."
 ))
 
 story.append(spc(4*mm))
@@ -666,7 +664,7 @@ checklist_items = [
     "File uploads are working (R2 bucket is accessible)",
     "Database schema has been applied",
     "Pesapal IPN URL is registered",
-    "WhatsApp notifications are working (CallMeBot API key is set)",
+    "WhatsApp support links are working on store pages",
     "A real payment test has been completed successfully",
 ]
 for item in checklist_items:

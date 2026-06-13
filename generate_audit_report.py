@@ -529,8 +529,8 @@ def build_report():
 
     story.append(Spacer(1, 4))
     story.append(Paragraph(
-        f'\u2022  {tag_badge("INFO", YELLOW_MINOR)}: CALLMEBOT_APIKEY is present but empty '
-        f'(WhatsApp notifications not yet configured)',
+        f'\u2022  {tag_badge("PASS", GREEN_PASS)}: CALLMEBOT_APIKEY removed from .env '
+        f'(WhatsApp notifications use direct links instead)',
         styles['BulletText']
     ))
 
