@@ -149,7 +149,8 @@ export interface Withdrawal {
 export interface Ticket {
   id: string;
   orderId: string;
-  productId: string;
+  eventId: string;
+  productId: string; // resolved from event -> product, for display convenience
   buyerEmail: string;
   buyerName: string;
   qrCode: string;

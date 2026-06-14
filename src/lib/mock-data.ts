@@ -514,6 +514,7 @@ const mockTickets: Ticket[] = [
   {
     id: "ticket-1",
     orderId: "order-4",
+    eventId: "event-1",
     productId: "prod-5",
     buyerEmail: "buyer4@example.com",
     buyerName: "Alice Nalubega",
@@ -525,6 +526,7 @@ const mockTickets: Ticket[] = [
   {
     id: "ticket-2",
     orderId: "order-7",
+    eventId: "event-1",
     productId: "prod-5",
     buyerEmail: "buyer7@example.com",
     buyerName: "Robert Mugisha",
@@ -536,6 +538,7 @@ const mockTickets: Ticket[] = [
   {
     id: "ticket-3",
     orderId: "order-9",
+    eventId: "event-2",
     productId: "prod-6",
     buyerEmail: "buyer9@example.com",
     buyerName: "Samuel Kato",

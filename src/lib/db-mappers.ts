@@ -187,7 +187,8 @@ export function mapTicketFromDb(row: Record<string, unknown>): Ticket {
   return {
     id: row.id as string,
     orderId: (row.order_id ?? row.orderId) as string,
-    productId: (row.event_id ?? row.eventId ?? row.productId) as string,
+    eventId: (row.event_id ?? row.eventId) as string,
+    productId: (row.product_id ?? row.productId ?? row.event_id ?? row.eventId ?? "") as string,
     buyerEmail: (row.buyer_email ?? row.buyerEmail ?? "") as string,
     buyerName: (row.buyer_name ?? row.buyerName ?? "") as string,
     qrCode: (row.qr_code_data ?? row.qrCode ?? "") as string,

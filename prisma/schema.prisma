@@ -26,6 +26,9 @@ model Creator {
   totalEarnings   Int      @default(0)
   totalSales      Int      @default(0)
   totalViews      Int      @default(0)
+  isActive        Boolean  @default(true)
+  isVerified      Boolean  @default(false)
+  isAdmin         Boolean  @default(false)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   products        Product[]
@@ -64,12 +67,12 @@ model Order {
   id                     String   @id @default(cuid())
   creatorId              String
   creator                Creator  @relation(fields: [creatorId], references: [id])
-  productId              String
+  productId              String?  // nullable for donations
   buyerEmail             String
   buyerName              String
   amount                 Int
-  platformFee            Int
-  creatorEarning         Int
+  platformFee            Int      @default(0)
+  creatorEarning         Int      @default(0)
   currency               String   @default("UGX")
   status                 String   @default("pending") // pending, completed, failed, refunded
   paymentMethod          String   @default("mtn_momo")
@@ -102,26 +105,30 @@ model Donation {
 }
 
 model Withdrawal {
-  id          String   @id @default(cuid())
-  creatorId   String
-  amount      Int
-  status      String   @default("pending") // pending, approved, processing, completed, rejected
-  phoneNumber String
-  provider    String
-  createdAt   DateTime @default(now())
-  processedAt DateTime?
+  id              String   @id @default(cuid())
+  creatorId       String
+  amount          Int
+  method          String   @default("mobile_money") // mobile_money, bank_transfer
+  accountDetails  String   @default("{}") // JSON string with phoneNumber, provider
+  status          String   @default("pending") // pending, approved, rejected, paid
+  adminNotes      String?
+  createdAt       DateTime @default(now()) @map("requested_at")
+  processedAt     DateTime?
+
+  @@map("withdrawals")
 }
 
 model Ticket {
   id           String   @id @default(cuid())
   orderId      String
-  productId    String
-  buyerEmail   String
-  buyerName    String
-  qrCode       String
-  checkedIn    Boolean  @default(false)
-  checkedInAt  DateTime?
-  createdAt    DateTime @default(now())
+  eventId      String
+  buyerEmail   String?  @map("buyer_email")
+  buyerName    String?  @map("buyer_name")
+  qrCodeData   String   @map("qr_code_data")
+  checkedIn    Boolean  @default(false) @map("checked_in")
+  checkedInAt  DateTime? @map("checked_in_at")
+
+  @@map("tickets")
 }
 
 model DownloadSession {
@@ -137,4 +144,28 @@ model DownloadSession {
 
   order           Order     @relation(fields: [orderId], references: [id])
   product         Product   @relation(fields: [productId], references: [id])
+}
+
+model Event {
+  id          String   @id @default(cuid())
+  productId   String
+  venue       String
+  eventDate   DateTime
+  capacity    Int
+  ticketsSold Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  @@map("events")
+}
+
+model ContactMessage {
+  id        String   @id @default(cuid())
+  name      String
+  email     String
+  subject   String   @default("")
+  message   String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@map("contact_messages")
 }

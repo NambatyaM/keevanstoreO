@@ -14,6 +14,10 @@ const isPesapalConfigured =
 let authToken: string | null = null;
 let authTokenExpiry = 0;
 
+// Cache IPN ID (avoid re-registering on every checkout)
+let cachedIpnId: string | null = null;
+let cachedIpnUrl: string | null = null;
+
 export interface PesapalAuthResponse {
   token: string;
   expiryDate: string;
@@ -190,6 +194,11 @@ export function isPesapalLive(): boolean {
 }
 
 export async function registerIPN(ipnUrl: string): Promise<string | null> {
+  // Return cached IPN ID if the URL matches (avoid re-registering on every checkout)
+  if (cachedIpnId && cachedIpnUrl === ipnUrl) {
+    return cachedIpnId;
+  }
+
   const token = await authenticate();
   if (!token) return null;
 
@@ -208,7 +217,15 @@ export async function registerIPN(ipnUrl: string): Promise<string | null> {
     });
 
     const data = await response.json();
-    return data.ipn_id || data.IPNId || null;
+    const ipnId = data.ipn_id || data.IPNId || null;
+
+    // Cache the result
+    if (ipnId) {
+      cachedIpnId = ipnId;
+      cachedIpnUrl = ipnUrl;
+    }
+
+    return ipnId;
   } catch {
     console.error("Failed to register IPN with Pesapal");
     return null;

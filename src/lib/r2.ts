@@ -10,12 +10,13 @@ import { getSignedUrl as getPresignedUrl } from "@aws-sdk/s3-request-presigner";
 import { GetObjectCommand } from "@aws-sdk/client-s3";
 import { writeFile, mkdir, unlink } from "fs/promises";
 import path from "path";
+import os from "os";
 import { DOWNLOAD_URL_EXPIRY } from "./constants";
 
 const R2_ACCOUNT_ID = process.env.R2_ACCOUNT_ID;
 const R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID;
 const R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY;
-const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME || "keevan-store";
+const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME || "keevanstore";
 
 const isR2Configured =
   R2_ACCOUNT_ID && R2_ACCOUNT_ID !== "mock" &&
@@ -49,8 +50,8 @@ export async function uploadFile(
   const client = getR2Client();
 
   if (!client) {
-    // Mock: save to local filesystem
-    const uploadDir = path.join(process.cwd(), "uploads", bucket);
+    // Mock: save to temporary directory (Vercel filesystem is read-only except /tmp)
+    const uploadDir = path.join(os.tmpdir(), "keevan-uploads", bucket);
     await mkdir(uploadDir, { recursive: true });
     const filePath = path.join(uploadDir, key);
     await writeFile(filePath, body);
@@ -76,8 +77,8 @@ export async function deleteFile(
   const client = getR2Client();
 
   if (!client) {
-    // Mock: delete from local filesystem
-    const filePath = path.join(process.cwd(), "uploads", bucket, key);
+    // Mock: delete from temporary directory
+    const filePath = path.join(os.tmpdir(), "keevan-uploads", bucket, key);
     try {
       await unlink(filePath);
     } catch {

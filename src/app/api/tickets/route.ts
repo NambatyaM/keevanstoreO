@@ -63,6 +63,47 @@ export async function GET(request: NextRequest) {
     }
 
     // Fetch orders for this product that are completed (those represent tickets)
+    // Try to use the proper tickets table first (linked via events)
+    const { data: eventRow } = await supabase
+      .from("events")
+      .select("id")
+      .eq("product_id", productId)
+      .single();
+
+    if (eventRow) {
+      // Use the proper tickets table
+      const { data: ticketRows, error: ticketError } = await supabase
+        .from("tickets")
+        .select("*")
+        .eq("event_id", eventRow.id);
+
+      if (ticketError) {
+        console.error("Error fetching tickets:", ticketError);
+      }
+
+      if (ticketRows && ticketRows.length > 0) {
+        const tickets: Ticket[] = ticketRows.map((row) => ({
+          id: row.id,
+          orderId: row.order_id,
+          eventId: row.event_id,
+          productId,
+          buyerEmail: row.buyer_email ?? "",
+          buyerName: row.buyer_name ?? "",
+          qrCode: row.qr_code_data ?? "",
+          checkedIn: row.checked_in ?? false,
+          checkedInAt: row.checked_in_at ?? null,
+          createdAt: row.created_at ?? new Date().toISOString(),
+        }));
+
+        return NextResponse.json({
+          success: true,
+          data: tickets,
+          total: tickets.length,
+        });
+      }
+    }
+
+    // Fallback: map orders to tickets (for products without events table entries)
     const { data: orderRows, error } = await supabase
       .from("orders")
       .select("id, buyer_email, buyer_name, created_at")
@@ -79,17 +120,18 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // Map orders to tickets (a proper tickets table would be better)
+    // Map orders to tickets as fallback
     const tickets: Ticket[] = (orderRows || []).map((row) => ({
       id: row.id,
       orderId: row.id,
+      eventId: eventRow?.id ?? "",
       productId,
-      buyerEmail: row.buyer_email,
-      buyerName: row.buyer_name,
+      buyerEmail: row.buyer_email ?? "",
+      buyerName: row.buyer_name ?? "",
       qrCode: `QR-${row.id.slice(0, 8).toUpperCase()}`,
       checkedIn: false,
       checkedInAt: null,
-      createdAt: row.created_at,
+      createdAt: row.created_at ?? new Date().toISOString(),
     }));
 
     return NextResponse.json({
