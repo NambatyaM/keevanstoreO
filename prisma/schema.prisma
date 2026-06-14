@@ -86,16 +86,19 @@ model Order {
 }
 
 model PageView {
-  id        String   @id @default(cuid())
-  creatorId String
-  page      String
-  referrer  String?
-  createdAt DateTime @default(now())
+  id            String   @id @default(cuid())
+  creatorId     String
+  productId     String?
+  viewType      String   @default("store") // store, product
+  viewerIpHash  String?
+  referrer      String?
+  createdAt     DateTime @default(now())
 }
 
 model Donation {
-  id        String   @id @default(cuid())
-  creatorId String
+  id         String   @id @default(cuid())
+  creatorId  String
+  orderId    String?
   donorEmail String
   donorName  String
   amount     Int
@@ -120,8 +123,8 @@ model Withdrawal {
 
 model Ticket {
   id           String   @id @default(cuid())
-  orderId      String
-  eventId      String
+  orderId      String   @map("order_id")
+  eventId      String   @map("event_id")
   buyerEmail   String?  @map("buyer_email")
   buyerName    String?  @map("buyer_name")
   qrCodeData   String   @map("qr_code_data")

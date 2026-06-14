@@ -446,6 +446,7 @@ const mockDonations: Donation[] = [
   {
     id: "don-1",
     creatorId: "creator-1",
+    orderId: null,
     donorEmail: "fan1@example.com",
     donorName: "Tom Byaruhanga",
     amount: 50000,
@@ -456,6 +457,7 @@ const mockDonations: Donation[] = [
   {
     id: "don-2",
     creatorId: "creator-1",
+    orderId: null,
     donorEmail: "fan2@example.com",
     donorName: "Anonymous",
     amount: 100000,
@@ -466,6 +468,7 @@ const mockDonations: Donation[] = [
   {
     id: "don-3",
     creatorId: "creator-3",
+    orderId: null,
     donorEmail: "fan3@example.com",
     donorName: "Linda Atuhaire",
     amount: 75000,

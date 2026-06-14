@@ -13,10 +13,18 @@ export async function middleware(request: NextRequest) {
     pathname.startsWith("/api/") ||
     pathname.startsWith("/login") ||
     pathname.startsWith("/signup") ||
+    pathname.startsWith("/about") ||
+    pathname.startsWith("/contact") ||
+    pathname.startsWith("/privacy") ||
+    pathname.startsWith("/terms") ||
+    pathname.startsWith("/payment/") ||
+    pathname.startsWith("/download/") ||
     pathname === "/" ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/favicon") ||
-    pathname.startsWith("/uploads")
+    pathname.startsWith("/uploads") ||
+    pathname.startsWith("/demo-") ||
+    pathname === "/sitemap.xml"
   ) {
     // Refresh auth session if possible
     const { response } = await updateSession(request);

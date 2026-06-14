@@ -111,7 +111,7 @@ export function mapOrderFromDb(row: Record<string, unknown>): Order {
   return {
     id: row.id as string,
     creatorId: (row.creator_id ?? row.creatorId) as string,
-    productId: (row.product_id ?? row.productId) as string,
+    productId: (row.product_id ?? row.productId ?? null) as string | null,
     buyerEmail: (row.buyer_email ?? row.buyerEmail ?? "") as string,
     buyerName: (row.buyer_name ?? row.buyerName ?? "") as string,
     amount: Number(row.amount),
@@ -134,6 +134,7 @@ export function mapDonationFromDb(row: Record<string, unknown>): Donation {
   return {
     id: row.id as string,
     creatorId: (row.creator_id ?? row.creatorId) as string,
+    orderId: (row.order_id ?? row.orderId ?? null) as string | null,
     donorEmail: (row.donor_email ?? row.donorEmail ?? "") as string,
     donorName: (row.donor_name ?? row.donorName ?? "Anonymous") as string,
     amount: Number(row.amount),
@@ -188,7 +189,7 @@ export function mapTicketFromDb(row: Record<string, unknown>): Ticket {
     id: row.id as string,
     orderId: (row.order_id ?? row.orderId) as string,
     eventId: (row.event_id ?? row.eventId) as string,
-    productId: (row.product_id ?? row.productId ?? row.event_id ?? row.eventId ?? "") as string,
+    productId: (row.product_id ?? row.productId ?? "") as string,
     buyerEmail: (row.buyer_email ?? row.buyerEmail ?? "") as string,
     buyerName: (row.buyer_name ?? row.buyerName ?? "") as string,
     qrCode: (row.qr_code_data ?? row.qrCode ?? "") as string,

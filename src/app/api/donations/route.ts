@@ -169,6 +169,7 @@ export async function POST(request: NextRequest) {
       const donation: Donation = {
         id: donationId,
         creatorId,
+        orderId: null,
         donorEmail: anonymous ? "" : donorEmail || "",
         donorName: anonymous ? "Anonymous" : donorName || "Anonymous",
         amount,

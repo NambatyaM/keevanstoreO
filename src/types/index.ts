@@ -127,6 +127,7 @@ export interface PageView {
 export interface Donation {
   id: string;
   creatorId: string;
+  orderId: string | null;
   donorEmail: string;
   donorName: string;
   amount: number;

@@ -138,8 +138,6 @@ export async function POST(request: NextRequest) {
             await serviceClient.from("tickets").insert({
               order_id: orderRow.id,
               event_id: eventData.id,
-              buyer_email: orderRow.buyer_email,
-              buyer_name: orderRow.buyer_name,
               qr_code_data: `QR-${orderRow.id}`,
             });
           } else {

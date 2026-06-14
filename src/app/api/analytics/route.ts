@@ -8,9 +8,6 @@ import {
   getMockProducts,
   getMockCreatorById,
   getMockPageViews,
-  mockCreators,
-  mockOrders,
-  mockProducts,
 } from "@/lib/mock-data";
 import { createServerSupabaseClient, createServiceRoleClient } from "@/lib/supabase/server";
 import { mapCreatorFromDb } from "@/lib/db-mappers";
