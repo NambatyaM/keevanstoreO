@@ -6,7 +6,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { isUsingMockData, getMockCreatorById, mockCreators, getMockPassword } from "@/lib/mock-data";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { mapCreatorFromDb } from "@/lib/db-mappers";
-import { checkRateLimit, getClientId } from "@/lib/rate-limit";
+import { checkRateLimit, getClientId, rateLimitHeaders } from "@/lib/rate-limit";
+// FIXED: Blueprint Phase 3 — Zod validation
+import { loginSchema } from "@/lib/validations";
 
 export async function POST(request: NextRequest) {
   try {
@@ -16,18 +18,23 @@ export async function POST(request: NextRequest) {
     if (!rateLimit.allowed) {
       return NextResponse.json(
         { success: false, error: "Too many login attempts. Please try again later." },
-        { status: 429, headers: { "Retry-After": String(Math.ceil((rateLimit.resetTime - Date.now()) / 1000)) } }
+        { status: 429, headers: { "Retry-After": String(Math.ceil((rateLimit.resetTime - Date.now()) / 1000)), ...rateLimitHeaders(rateLimit) } }
       );
     }
 
-    const { email, password } = await request.json();
+    const body = await request.json();
 
-    if (!email || !password) {
+    // FIXED: Blueprint Phase 3 — Zod replaces manual field checks
+    const parsed = loginSchema.safeParse(body);
+    if (!parsed.success) {
+      const firstError = parsed.error.issues[0];
       return NextResponse.json(
-        { success: false, error: "Email and password are required" },
+        { success: false, error: firstError?.message ?? "Invalid request data" },
         { status: 400 }
       );
     }
+
+    const { email, password } = parsed.data;
 
     if (isUsingMockData()) {
       // Mock login: find creator by email

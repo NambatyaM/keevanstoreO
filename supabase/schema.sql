@@ -162,6 +162,8 @@ CREATE TABLE IF NOT EXISTS tickets (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   order_id UUID NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
   event_id UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  buyer_email TEXT,
+  buyer_name TEXT,
   qr_code_data TEXT NOT NULL UNIQUE,
   checked_in BOOLEAN DEFAULT false NOT NULL,
   checked_in_at TIMESTAMPTZ
@@ -444,16 +446,24 @@ BEGIN
       total_sales = total_sales + 1
   WHERE id = v_creator_id;
 
-  -- Update product sales count
-  UPDATE products
-  SET sales_count = sales_count + 1
-  WHERE id = v_product_id;
+  -- Update product sales count and event tickets (only for event products)
+  IF v_order.product_id IS NOT NULL THEN
+    UPDATE products
+    SET sales_count = sales_count + 1
+    WHERE id = v_order.product_id;
 
-  -- For events, also increment tickets_sold
-  IF v_order.payment_method IN ('mtn_momo', 'airtel_money', 'bank_transfer', 'card') THEN
+    -- Only increment tickets_sold for event-type products
+    UPDATE products
+    SET tickets_sold = tickets_sold + 1
+    WHERE id = v_order.product_id
+      AND type = 'event';
+
     UPDATE events
     SET tickets_sold = tickets_sold + 1
-    WHERE product_id = v_product_id;
+    WHERE product_id = v_order.product_id
+      AND EXISTS (
+        SELECT 1 FROM products WHERE id = v_order.product_id AND type = 'event'
+      );
   END IF;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

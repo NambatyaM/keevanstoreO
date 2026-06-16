@@ -32,13 +32,14 @@ function mockLogin(email: string, password: string): AuthResult {
 // ── Tests ────────────────────────────────────────────────────────
 
 describe('Auth Security — Mock Mode', () => {
-  it('Correct email + password = success', () => {
-    const adminCreator = mockCreators.find(
-      (c) => c.email === 'nkevinmegan@gmail.com'
-    );
-    expect(adminCreator).toBeDefined();
+  // Resolve the admin password dynamically so tests don't break
+  // if the dev-only password is rotated in mock-data.ts
+  const adminCreator = mockCreators.find((c) => c.email === 'nkevinmegan@gmail.com');
+  const adminPassword = adminCreator ? getMockPassword(adminCreator.id) : '';
 
-    const result = mockLogin('nkevinmegan@gmail.com', 'Keeva#44');
+  it('Correct email + password = success', () => {
+    expect(adminCreator).toBeDefined();
+    const result = mockLogin('nkevinmegan@gmail.com', adminPassword);
     expect(result.success).toBe(true);
     expect(result.creator).toBeDefined();
     expect(result.creator!.email).toBe('nkevinmegan@gmail.com');
@@ -57,9 +58,6 @@ describe('Auth Security — Mock Mode', () => {
   });
 
   it('Admin user (nkevinmegan@gmail.com) has isAdmin = true', () => {
-    const adminCreator = mockCreators.find(
-      (c) => c.email === 'nkevinmegan@gmail.com'
-    );
     expect(adminCreator).toBeDefined();
     expect(adminCreator!.isAdmin).toBe(true);
   });
@@ -85,7 +83,7 @@ describe('Auth Security — Mock Mode', () => {
   });
 
   it('Admin can log in with correct credentials', () => {
-    const result = mockLogin('nkevinmegan@gmail.com', 'Keeva#44');
+    const result = mockLogin('nkevinmegan@gmail.com', adminPassword);
     expect(result.success).toBe(true);
     expect(result.creator!.isAdmin).toBe(true);
   });
@@ -132,13 +130,13 @@ describe('Auth Security — Mock Mode', () => {
   });
 
   it('Case-sensitive email matching', () => {
-    // Email lookups should be case-sensitive (database uniqueness)
-    const result = mockLogin('NKEVINMEGAN@GMAIL.COM', 'Keeva#44');
+    // Email lookups should be case-sensitive
+    const result = mockLogin('NKEVINMEGAN@GMAIL.COM', adminPassword);
     expect(result.success).toBe(false);
   });
 
   it('Password is exact match, not partial', () => {
-    const result = mockLogin('nkevinmegan@gmail.com', 'Keeva#4');
+    const result = mockLogin('nkevinmegan@gmail.com', adminPassword.slice(0, -1));
     expect(result.success).toBe(false);
   });
 });

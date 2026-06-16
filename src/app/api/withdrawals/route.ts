@@ -15,6 +15,7 @@ import { createServerSupabaseClient, createServiceRoleClient } from "@/lib/supab
 import { mapWithdrawalFromDb, mapWithdrawalToDb } from "@/lib/db-mappers";
 import { notifyWithdrawalRequest } from "@/lib/notifications";
 import { checkRateLimit, getClientId } from "@/lib/rate-limit";
+import { createWithdrawalSchema } from "@/lib/validations";
 import type { Withdrawal, WithdrawalStatus } from "@/types";
 
 export async function GET(request: NextRequest) {
@@ -107,29 +108,18 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { creatorId, amount, method, phoneNumber, provider } = body;
 
-    // Validate required fields
-    if (!creatorId || !amount || !phoneNumber || !provider) {
+    // FIXED: Blueprint Phase 4 — Zod validation replaces manual checks
+    const parsed = createWithdrawalSchema.safeParse(body);
+    if (!parsed.success) {
+      const firstError = parsed.error.issues[0];
       return NextResponse.json(
-        {
-          success: false,
-          error: "Missing required fields: creatorId, amount, phoneNumber, provider",
-        },
+        { success: false, error: firstError?.message ?? "Invalid request data" },
         { status: 400 }
       );
     }
 
-    // Validate amount >= 50,000 UGX
-    if (typeof amount !== "number" || amount < MIN_WITHDRAWAL_AMOUNT) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: `Minimum withdrawal amount is UGX ${MIN_WITHDRAWAL_AMOUNT.toLocaleString()}`,
-        },
-        { status: 400 }
-      );
-    }
+    const { creatorId, amount, method, phoneNumber, provider } = parsed.data;
 
     if (isUsingMockData()) {
       const creator = getMockCreatorById(creatorId);

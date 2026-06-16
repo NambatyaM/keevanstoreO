@@ -9,7 +9,7 @@ import {
   mockTickets,
   getMockProductById,
 } from "@/lib/mock-data";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { createServerSupabaseClient, createServiceRoleClient } from "@/lib/supabase/server";
 import type { Ticket } from "@/types";
 
 export async function GET(request: NextRequest) {
@@ -197,27 +197,66 @@ export async function POST(request: NextRequest) {
     }
 
     // Real Supabase flow
-    // NOTE: Full check-in backend integration requires a dedicated tickets
-    // table with check_in_at and checked_in columns in Supabase.
-    // This is a placeholder — the actual DB schema and RLS policies
-    // need to be created before this endpoint can work in production.
-    const supabase = await createServerSupabaseClient();
-    if (!supabase) {
+    const serviceClient = createServiceRoleClient();
+    if (!serviceClient) {
       return NextResponse.json(
         { success: false, error: "Supabase not configured" },
         { status: 500 }
       );
     }
 
-    return NextResponse.json(
-      {
-        success: false,
-        error:
-          "Check-in requires a dedicated tickets table in Supabase. " +
-          "Please set up the tickets schema and re-enable this endpoint.",
-      },
-      { status: 501 }
-    );
+    // Get the ticket from the tickets table
+    const { data: ticketRow, error: fetchError } = await serviceClient
+      .from("tickets")
+      .select("*")
+      .eq("id", ticketId)
+      .single();
+
+    if (fetchError || !ticketRow) {
+      return NextResponse.json(
+        { success: false, error: "Ticket not found" },
+        { status: 404 }
+      );
+    }
+
+    // Update checked_in and checked_in_at fields
+    const updateData =
+      action === "checkin"
+        ? { checked_in: true, checked_in_at: new Date().toISOString() }
+        : { checked_in: false, checked_in_at: null };
+
+    const { data: updatedRow, error: updateError } = await serviceClient
+      .from("tickets")
+      .update(updateData)
+      .eq("id", ticketId)
+      .select("*")
+      .single();
+
+    if (updateError || !updatedRow) {
+      console.error("Error updating ticket:", updateError);
+      return NextResponse.json(
+        { success: false, error: "Failed to update ticket" },
+        { status: 500 }
+      );
+    }
+
+    const updatedTicket: Ticket = {
+      id: updatedRow.id,
+      orderId: updatedRow.order_id,
+      eventId: updatedRow.event_id,
+      productId: "",
+      buyerEmail: updatedRow.buyer_email ?? "",
+      buyerName: updatedRow.buyer_name ?? "",
+      qrCode: updatedRow.qr_code_data ?? "",
+      checkedIn: updatedRow.checked_in ?? false,
+      checkedInAt: updatedRow.checked_in_at ?? null,
+      createdAt: updatedRow.created_at ?? new Date().toISOString(),
+    };
+
+    return NextResponse.json({
+      success: true,
+      data: updatedTicket,
+    });
   } catch (error) {
     console.error("Error in tickets POST:", error instanceof Error ? error.message : String(error));
     return NextResponse.json(

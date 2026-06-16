@@ -12,7 +12,9 @@ import {
 import { MIN_PRODUCT_PRICE } from "@/lib/constants";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { mapProductFromDb, mapProductToDb } from "@/lib/db-mappers";
-import { checkRateLimit, getClientId } from "@/lib/rate-limit";
+import { checkRateLimit, getClientId, rateLimitHeaders } from "@/lib/rate-limit";
+// FIXED: Blueprint Phase 3 — Zod validation
+import { createProductSchema } from "@/lib/validations";
 import type { Product, ProductType, ProductStatus } from "@/types";
 
 export async function GET(request: NextRequest) {
@@ -103,10 +105,26 @@ export async function POST(request: NextRequest) {
     if (!rateLimit.allowed) {
       return NextResponse.json(
         { success: false, error: "Too many product creation attempts. Please try again later." },
-        { status: 429 }
+        { status: 429, headers: rateLimitHeaders(rateLimit) }
       );
     }
+
     const body = await request.json();
+
+    // FIXED: Blueprint Phase 3 — Zod replaces manual validation
+    const parsed = createProductSchema.safeParse({
+      ...body,
+      // Coerce price to number in case it arrives as a string from some clients
+      price: typeof body.price === "string" ? parseInt(body.price, 10) : body.price,
+    });
+    if (!parsed.success) {
+      const firstError = parsed.error.issues[0];
+      return NextResponse.json(
+        { success: false, error: firstError?.message ?? "Invalid request data" },
+        { status: 400 }
+      );
+    }
+
     const {
       creatorId,
       title,
@@ -121,24 +139,7 @@ export async function POST(request: NextRequest) {
       venue,
       eventDate,
       capacity,
-    } = body;
-
-    if (!creatorId || !title || !price || !type) {
-      return NextResponse.json(
-        { success: false, error: "Missing required fields" },
-        { status: 400 }
-      );
-    }
-
-    if (price < MIN_PRODUCT_PRICE) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: `Minimum price is UGX ${MIN_PRODUCT_PRICE.toLocaleString()}`,
-        },
-        { status: 400 }
-      );
-    }
+    } = parsed.data;
 
     // Generate slug from title
     const slug = title

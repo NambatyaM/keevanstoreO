@@ -5,6 +5,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Users,
   Package,
@@ -46,6 +47,7 @@ mockCreators.forEach((c) => {
 });
 
 export default function AdminPage() {
+  const router = useRouter();
   const [orderFilter, setOrderFilter] = useState<string>("all");
   const [withdrawals, setWithdrawals] = useState(mockWithdrawals.map(w => ({ ...w })));
   const [creatorStates, setCreatorStates] = useState<Record<string, CreatorAdminState>>({ ...creatorAdminStates });
@@ -75,6 +77,11 @@ export default function AdminPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ creatorId, action }),
         });
+        if (res.status === 401 || res.status === 403) {
+          toast.error("Session expired. Redirecting to login...");
+          setTimeout(() => router.push("/login?redirect=/admin"), 1500);
+          return;
+        }
         const data = await res.json();
         if (data.success) {
           setCreatorStates((prev) => ({
@@ -104,7 +111,7 @@ export default function AdminPage() {
         setActionLoading(null);
       }
     },
-    []
+    [router]
   );
 
   // Handle withdrawal approve/reject
@@ -117,6 +124,11 @@ export default function AdminPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ withdrawalId, action }),
         });
+        if (res.status === 401 || res.status === 403) {
+          toast.error("Session expired. Redirecting to login...");
+          setTimeout(() => router.push("/login?redirect=/admin"), 1500);
+          return;
+        }
         const data = await res.json();
         if (data.success) {
           setWithdrawals((prev) =>
@@ -142,7 +154,7 @@ export default function AdminPage() {
         setActionLoading(null);
       }
     },
-    []
+    [router]
   );
 
   // Get creator name by ID

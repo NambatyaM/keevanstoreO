@@ -1,6 +1,10 @@
 // ============================================================
 // Pesapal Payment Integration Module
 // ============================================================
+// FIXED: Blueprint Issue B — Token cache and IPN ID moved to globalThis
+// to survive Next.js hot-reloads and prevent thundering-herd token requests
+// when multiple concurrent checkouts fire simultaneously.
+// ============================================================
 
 const PESAPAL_CONSUMER_KEY = process.env.PESAPAL_CONSUMER_KEY;
 const PESAPAL_CONSUMER_SECRET = process.env.PESAPAL_CONSUMER_SECRET;
@@ -10,13 +14,21 @@ const isPesapalConfigured =
   PESAPAL_CONSUMER_KEY && PESAPAL_CONSUMER_KEY !== "mock" &&
   PESAPAL_CONSUMER_SECRET && PESAPAL_CONSUMER_SECRET !== "mock";
 
-// Cache auth token
-let authToken: string | null = null;
-let authTokenExpiry = 0;
+// ── Singleton cache on globalThis ────────────────────────────
+// Prevents token thundering herd: only one token request in-flight at a time.
+const _g = globalThis as typeof globalThis & {
+  __pesapalAuthToken: string | null;
+  __pesapalAuthTokenExpiry: number;
+  __pesapalAuthInFlight: Promise<string | null> | null;
+  __pesapalCachedIpnId: string | null;
+  __pesapalCachedIpnUrl: string | null;
+};
 
-// Cache IPN ID (avoid re-registering on every checkout)
-let cachedIpnId: string | null = null;
-let cachedIpnUrl: string | null = null;
+if (_g.__pesapalAuthToken === undefined) _g.__pesapalAuthToken = null;
+if (_g.__pesapalAuthTokenExpiry === undefined) _g.__pesapalAuthTokenExpiry = 0;
+if (_g.__pesapalAuthInFlight === undefined) _g.__pesapalAuthInFlight = null;
+if (_g.__pesapalCachedIpnId === undefined) _g.__pesapalCachedIpnId = null;
+if (_g.__pesapalCachedIpnUrl === undefined) _g.__pesapalCachedIpnUrl = null;
 
 export interface PesapalAuthResponse {
   token: string;
@@ -74,38 +86,50 @@ export async function authenticate(): Promise<string | null> {
   }
 
   // Return cached token if still valid
-  if (authToken && Date.now() < authTokenExpiry) {
-    return authToken;
+  if (_g.__pesapalAuthToken && Date.now() < _g.__pesapalAuthTokenExpiry) {
+    return _g.__pesapalAuthToken;
   }
 
-  try {
-    const response = await fetch(`${PESAPAL_API_URL}/Auth/RequestToken`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      body: JSON.stringify({
-        consumer_key: PESAPAL_CONSUMER_KEY,
-        consumer_secret: PESAPAL_CONSUMER_SECRET,
-      }),
-    });
+  // FIXED: Blueprint Issue B — if a token request is already in-flight,
+  // wait for it instead of sending a duplicate request to Pesapal.
+  if (_g.__pesapalAuthInFlight) {
+    return _g.__pesapalAuthInFlight;
+  }
 
-    const data: PesapalAuthResponse = await response.json();
+  _g.__pesapalAuthInFlight = (async (): Promise<string | null> => {
+    try {
+      const response = await fetch(`${PESAPAL_API_URL}/Auth/RequestToken`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          consumer_key: PESAPAL_CONSUMER_KEY,
+          consumer_secret: PESAPAL_CONSUMER_SECRET,
+        }),
+      });
 
-    if (data.token) {
-      authToken = data.token;
-      // Set expiry to 5 minutes before actual expiry
-      const expiryMs = new Date(data.expiryDate).getTime() - 5 * 60 * 1000;
-      authTokenExpiry = expiryMs;
-      return authToken;
+      const data: PesapalAuthResponse = await response.json();
+
+      if (data.token) {
+        _g.__pesapalAuthToken = data.token;
+        // Expire 5 minutes before actual expiry to avoid using a stale token
+        _g.__pesapalAuthTokenExpiry = new Date(data.expiryDate).getTime() - 5 * 60 * 1000;
+        return _g.__pesapalAuthToken;
+      }
+
+      return null;
+    } catch {
+      console.error("Failed to authenticate with Pesapal");
+      return null;
+    } finally {
+      // Clear the in-flight promise so the next failure triggers a fresh attempt
+      _g.__pesapalAuthInFlight = null;
     }
+  })();
 
-    return null;
-  } catch {
-    console.error("Failed to authenticate with Pesapal");
-    return null;
-  }
+  return _g.__pesapalAuthInFlight;
 }
 
 export async function submitOrder(
@@ -194,13 +218,20 @@ export function isPesapalLive(): boolean {
 }
 
 export async function registerIPN(ipnUrl: string): Promise<string | null> {
-  // Return cached IPN ID if the URL matches (avoid re-registering on every checkout)
-  if (cachedIpnId && cachedIpnUrl === ipnUrl) {
-    return cachedIpnId;
+  // FIXED: Blueprint Issue B — IPN ID cached on globalThis singleton
+  if (_g.__pesapalCachedIpnId && _g.__pesapalCachedIpnUrl === ipnUrl) {
+    return _g.__pesapalCachedIpnId;
   }
 
   const token = await authenticate();
   if (!token) return null;
+
+  // Mock mode: return a stable fake IPN ID
+  if (!isPesapalConfigured) {
+    _g.__pesapalCachedIpnId = "mock-ipn-id";
+    _g.__pesapalCachedIpnUrl = ipnUrl;
+    return _g.__pesapalCachedIpnId;
+  }
 
   try {
     const response = await fetch(`${PESAPAL_API_URL}/URLSetup/RegisterIPN`, {
@@ -219,10 +250,9 @@ export async function registerIPN(ipnUrl: string): Promise<string | null> {
     const data = await response.json();
     const ipnId = data.ipn_id || data.IPNId || null;
 
-    // Cache the result
     if (ipnId) {
-      cachedIpnId = ipnId;
-      cachedIpnUrl = ipnUrl;
+      _g.__pesapalCachedIpnId = ipnId;
+      _g.__pesapalCachedIpnUrl = ipnUrl;
     }
 
     return ipnId;

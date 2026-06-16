@@ -1,12 +1,14 @@
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
+// FIXED: Blueprint Issue C — Added cascade deletes on relational models,
+// added PlatformConfig model for persistent platform-level settings.
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -31,73 +33,87 @@ model Creator {
   isAdmin         Boolean  @default(false)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
-  products        Product[]
-  orders          Order[]
+
+  // FIXED: cascade delete — deleting a creator removes all their data
+  products    Product[]
+  orders      Order[]
+  withdrawals Withdrawal[]
+  donations   Donation[]
+  pageViews   PageView[]
 }
 
 model Product {
-  id          String   @id @default(cuid())
-  creatorId   String
-  creator     Creator  @relation(fields: [creatorId], references: [id])
-  title       String
-  slug        String
-  description String   @default("")
-  price       Int
-  currency    String   @default("UGX")
-  type        String   @default("digital") // digital, event
-  status      String   @default("active") // active, inactive
+  id           String    @id @default(cuid())
+  creatorId    String
+  // FIXED: cascade delete — deleting a creator removes their products
+  creator      Creator   @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  title        String
+  slug         String
+  description  String    @default("")
+  price        Int
+  currency     String    @default("UGX")
+  type         String    @default("digital") // digital, event
+  status       String    @default("active")  // active, inactive
   thumbnailUrl String?
-  fileUrl     String?
-  fileName    String?
-  fileSize    Int?
-  venue       String?
-  eventDate   DateTime?
-  capacity    Int?
-  ticketsSold Int      @default(0)
-  views       Int      @default(0)
-  salesCount  Int      @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  fileUrl      String?
+  fileName     String?
+  fileSize     Int?
+  venue        String?
+  eventDate    DateTime?
+  capacity     Int?
+  ticketsSold  Int       @default(0)
+  views        Int       @default(0)
+  salesCount   Int       @default(0)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   @@unique([creatorId, slug])
   downloadSessions DownloadSession[]
+  events           Event[]
 }
 
 model Order {
-  id                     String   @id @default(cuid())
+  id                     String    @id @default(cuid())
   creatorId              String
-  creator                Creator  @relation(fields: [creatorId], references: [id])
-  productId              String?  // nullable for donations
+  // FIXED: cascade delete — deleting a creator removes their orders
+  creator                Creator   @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  productId              String?   // nullable for donations
   buyerEmail             String
   buyerName              String
   amount                 Int
-  platformFee            Int      @default(0)
-  creatorEarning         Int      @default(0)
-  currency               String   @default("UGX")
-  status                 String   @default("pending") // pending, completed, failed, refunded
-  paymentMethod          String   @default("mtn_momo")
+  platformFee            Int       @default(0)
+  creatorEarning         Int       @default(0)
+  currency               String    @default("UGX")
+  status                 String    @default("pending") // pending, completed, failed, refunded
+  paymentMethod          String    @default("mtn_momo")
   pesapalOrderTrackingId String?
   pesapalTransactionId   String?
   downloadToken          String?
-  createdAt              DateTime @default(now())
-  updatedAt              DateTime @updatedAt
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
 
-  downloadSessions       DownloadSession[]
+  // FIXED: cascade delete — deleting an order removes associated sessions
+  downloadSessions DownloadSession[]
+  tickets          Ticket[]
 }
 
 model PageView {
-  id            String   @id @default(cuid())
-  creatorId     String
-  productId     String?
-  viewType      String   @default("store") // store, product
-  viewerIpHash  String?
-  referrer      String?
-  createdAt     DateTime @default(now())
+  id           String   @id @default(cuid())
+  creatorId    String
+  // FIXED: cascade delete
+  creator      Creator  @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  productId    String?
+  viewType     String   @default("store") // store, product
+  viewerIpHash String?
+  referrer     String?
+  createdAt    DateTime @default(now())
 }
 
 model Donation {
   id         String   @id @default(cuid())
   creatorId  String
+  // FIXED: cascade delete
+  creator    Creator  @relation(fields: [creatorId], references: [id], onDelete: Cascade)
   orderId    String?
   donorEmail String
   donorName  String
@@ -108,50 +124,57 @@ model Donation {
 }
 
 model Withdrawal {
-  id              String   @id @default(cuid())
-  creatorId       String
-  amount          Int
-  method          String   @default("mobile_money") // mobile_money, bank_transfer
-  accountDetails  String   @default("{}") // JSON string with phoneNumber, provider
-  status          String   @default("pending") // pending, approved, rejected, paid
-  adminNotes      String?
-  createdAt       DateTime @default(now()) @map("requested_at")
-  processedAt     DateTime?
+  id             String    @id @default(cuid())
+  creatorId      String
+  // FIXED: cascade delete
+  creator        Creator   @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  amount         Int
+  method         String    @default("mobile_money") // mobile_money, bank_transfer
+  accountDetails String    @default("{}") // JSON string with phoneNumber, provider
+  status         String    @default("pending") // pending, approved, rejected, paid
+  adminNotes     String?
+  createdAt      DateTime  @default(now()) @map("requested_at")
+  processedAt    DateTime?
 
   @@map("withdrawals")
 }
 
 model Ticket {
-  id           String   @id @default(cuid())
-  orderId      String   @map("order_id")
-  eventId      String   @map("event_id")
-  buyerEmail   String?  @map("buyer_email")
-  buyerName    String?  @map("buyer_name")
-  qrCodeData   String   @map("qr_code_data")
-  checkedIn    Boolean  @default(false) @map("checked_in")
-  checkedInAt  DateTime? @map("checked_in_at")
+  id          String    @id @default(cuid())
+  orderId     String    @map("order_id")
+  // FIXED: cascade delete — deleting an order removes its tickets
+  order       Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  eventId     String    @map("event_id")
+  buyerEmail  String?   @map("buyer_email")
+  buyerName   String?   @map("buyer_name")
+  qrCodeData  String    @map("qr_code_data")
+  checkedIn   Boolean   @default(false) @map("checked_in")
+  checkedInAt DateTime? @map("checked_in_at")
 
   @@map("tickets")
 }
 
 model DownloadSession {
-  id              String    @id @default(cuid())
-  orderId         String
-  productId       String
-  downloadToken   String    @unique
-  expiresAt       DateTime
-  downloadCount   Int       @default(0)
-  maxDownloads    Int       @default(5)
+  id               String    @id @default(cuid())
+  orderId          String
+  // FIXED: cascade delete — deleting an order removes its download sessions
+  order            Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId        String
+  // FIXED: cascade delete — deleting a product removes its download sessions
+  product          Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  downloadToken    String    @unique
+  expiresAt        DateTime
+  downloadCount    Int       @default(0)
+  maxDownloads     Int       @default(5)
   lastDownloadedAt DateTime?
-  createdAt       DateTime  @default(now())
-
-  order           Order     @relation(fields: [orderId], references: [id])
-  product         Product   @relation(fields: [productId], references: [id])
+  createdAt        DateTime  @default(now())
 }
 
 model Event {
   id          String   @id @default(cuid())
   productId   String
+  // FIXED: cascade delete — deleting a product removes its event record
+  product     Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
   venue       String
   eventDate   DateTime
   capacity    Int
@@ -171,4 +194,18 @@ model ContactMessage {
   createdAt DateTime @default(now())
 
   @@map("contact_messages")
+}
+
+// FIXED: Blueprint Issue C — PlatformConfig model for persistent
+// platform-wide settings that must survive deployments (IPN ID, fee rates).
+model PlatformConfig {
+  id        String   @id @default("singleton") // Single row enforced by fixed ID
+  // Pesapal IPN registration ID — cached here so re-deploys don't re-register
+  ipnId     String?
+  ipnUrl    String?
+  // Platform fee override (defaults to PLATFORM_FEE_PERCENT constant if null)
+  feePercent Int?
+  updatedAt DateTime @updatedAt
+
+  @@map("platform_config")
 }

@@ -62,8 +62,10 @@ export default function NewProductPage() {
         setThumbnailUrl(data.data.url);
         return data.data.url;
       }
+      toast.error(data.error || "Thumbnail upload failed. Please try again.");
       return null;
     } catch {
+      toast.error("Upload service unavailable. Please try again.");
       return null;
     }
   };
@@ -82,8 +84,10 @@ export default function NewProductPage() {
         setFileSize(data.data.fileSize);
         return data.data.url;
       }
+      toast.error(data.error || "Upload failed. Please try again.");
       return null;
     } catch {
+      toast.error("Upload service unavailable. Please try again.");
       return null;
     }
   };
@@ -280,7 +284,8 @@ export default function NewProductPage() {
                 type="file"
                 accept="*/*"
                 label="Digital File"
-                description="Any file type, max 500MB"
+                description="Any file type, max 100MB"
+                maxSize={100 * 1024 * 1024}
               />
             </CardContent>
           </Card>

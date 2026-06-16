@@ -26,9 +26,10 @@ export async function POST(request: NextRequest) {
     }
 
     // Real Pesapal IPN handling
-    if (!OrderTrackingId) {
+    // Require at least one of: OrderTrackingId or OrderMerchantReference
+    if (!OrderTrackingId && !OrderMerchantReference) {
       return NextResponse.json(
-        { success: false, error: "Missing OrderTrackingId" },
+        { success: false, error: "Missing OrderTrackingId and OrderMerchantReference" },
         { status: 400 }
       );
     }
@@ -42,15 +43,33 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Find the order by pesapal_order_tracking_id
-    const { data: orderRow, error: orderError } = await serviceClient
-      .from("orders")
-      .select("*")
-      .eq("pesapal_order_tracking_id", OrderTrackingId)
-      .single();
+    // Find the order — prefer OrderTrackingId, fall back to OrderMerchantReference (order ID)
+    let orderRow: Record<string, unknown> | null = null;
+    let orderError: unknown = null;
+
+    if (OrderTrackingId) {
+      const result = await serviceClient
+        .from("orders")
+        .select("*")
+        .eq("pesapal_order_tracking_id", OrderTrackingId)
+        .single();
+      orderRow = result.data;
+      orderError = result.error;
+    }
+
+    // Fallback: look up by order ID (OrderMerchantReference = the orderId we sent to Pesapal)
+    if ((!orderRow || orderError) && OrderMerchantReference) {
+      const result = await serviceClient
+        .from("orders")
+        .select("*")
+        .eq("id", OrderMerchantReference)
+        .single();
+      orderRow = result.data;
+      orderError = result.error;
+    }
 
     if (orderError || !orderRow) {
-      console.error("Order not found for tracking ID:", OrderTrackingId);
+      console.error("Order not found for tracking ID:", OrderTrackingId, "/ reference:", OrderMerchantReference);
       // Still return 200 to acknowledge receipt
       return NextResponse.json({
         success: true,
@@ -59,7 +78,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Idempotency check: if order is already completed, skip processing
-    if (orderRow.status === "completed") {
+    if ((orderRow as Record<string, unknown>).status === "completed") {
       console.log("Order already completed, skipping:", orderRow.id);
       return NextResponse.json({
         success: true,
@@ -68,14 +87,26 @@ export async function POST(request: NextRequest) {
     }
 
     // Get the actual transaction status from Pesapal
-    const transactionStatus = await getTransactionStatus(OrderTrackingId);
+    // Use the tracking ID from the IPN body, or fall back to the one stored on the order
+    const trackingIdForStatus = OrderTrackingId || (orderRow.pesapal_order_tracking_id as string | null);
+
+    if (!trackingIdForStatus) {
+      console.error("No tracking ID available to verify payment status for order:", orderRow.id);
+      return NextResponse.json(
+        { success: false, error: "Cannot verify payment status without tracking ID, will retry" },
+        { status: 500 }
+      );
+    }
+
+    const transactionStatus = await getTransactionStatus(trackingIdForStatus);
 
     if (!transactionStatus) {
-      console.error("Failed to get transaction status for:", OrderTrackingId);
-      return NextResponse.json({
-        success: true,
-        message: "IPN received, status check pending",
-      });
+      console.error("Failed to get transaction status for:", trackingIdForStatus, "— returning 500 to trigger Pesapal retry");
+      // Return 500 so Pesapal retries the IPN notification
+      return NextResponse.json(
+        { success: false, error: "Failed to verify payment status, will retry" },
+        { status: 500 }
+      );
     }
 
     if (transactionStatus.payment_status === "COMPLETED") {
@@ -89,14 +120,22 @@ export async function POST(request: NextRequest) {
 
       if (rpcError) {
         console.error("process_completed_payment RPC failed:", rpcError.message);
-        // If RPC fails (e.g., order not found or already completed), it's not a server error
-        // The RPC has its own idempotency check
+        // Only swallow idempotency errors (order already completed)
+        // For all other errors, return 500 to trigger Pesapal retry
+        if (!rpcError.message.includes("already completed") && !rpcError.message.includes("already processed")) {
+          return NextResponse.json(
+            { success: false, error: "Payment processing failed, will retry" },
+            { status: 500 }
+          );
+        }
       }
 
       const productId = orderRow.product_id;
 
-      // For digital products: generate download token and session if not already set
-      if (orderRow.download_token === null) {
+      // For digital products: create download session if not already created
+      // Check the download_sessions table, not the download_token field on the order
+      // (download_token is pre-assigned at order creation, but the session is only created after payment)
+      if (productId) {
         const { data: productTypeData } = await serviceClient
           .from("products")
           .select("type")
@@ -104,44 +143,65 @@ export async function POST(request: NextRequest) {
           .single();
 
         if (productTypeData?.type === "digital") {
-          const downloadToken = `dl-${crypto.randomUUID()}`;
-          await serviceClient
-            .from("orders")
-            .update({
-              download_token: downloadToken,
-            })
-            .eq("id", orderRow.id);
-
-          // Create a download session for the digital product
-          await serviceClient
+          // Check if a download session already exists (idempotency)
+          const { data: existingSession } = await serviceClient
             .from("download_sessions")
-            .insert({
-              order_id: orderRow.id,
-              product_id: productId,
-              download_token: crypto.randomUUID(),
-              expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-              max_downloads: 5,
-            });
+            .select("id")
+            .eq("order_id", orderRow.id)
+            .maybeSingle();
+
+          if (!existingSession) {
+            // Use the pre-assigned download_token from the order, or generate a new one
+            const downloadToken = orderRow.download_token || `dl-${crypto.randomUUID()}`;
+
+            // Ensure the order has a download_token stored
+            if (!orderRow.download_token) {
+              await serviceClient
+                .from("orders")
+                .update({ download_token: downloadToken })
+                .eq("id", orderRow.id);
+            }
+
+            // Create the download session
+            await serviceClient
+              .from("download_sessions")
+              .insert({
+                order_id: orderRow.id,
+                product_id: productId,
+                download_token: downloadToken,
+                expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+                max_downloads: 5,
+              });
+          }
         }
 
-        // For events: create a ticket record (RPC handles tickets_sold increment)
+        // For events: create a ticket record if not already created
         if (productTypeData?.type === "event") {
-          // Look up the events table row to get the correct event ID
-          // (productId points to the products table, but tickets.event_id references events.id)
-          const { data: eventData } = await serviceClient
-            .from("events")
+          // Check if a ticket already exists for this order (idempotency)
+          const { data: existingTicket } = await serviceClient
+            .from("tickets")
             .select("id")
-            .eq("product_id", productId)
-            .single();
+            .eq("order_id", orderRow.id)
+            .maybeSingle();
 
-          if (eventData) {
-            await serviceClient.from("tickets").insert({
-              order_id: orderRow.id,
-              event_id: eventData.id,
-              qr_code_data: `QR-${orderRow.id}`,
-            });
-          } else {
-            console.error("Event not found for product ID:", productId, "— ticket not created");
+          if (!existingTicket) {
+            const { data: eventData } = await serviceClient
+              .from("events")
+              .select("id")
+              .eq("product_id", productId)
+              .single();
+
+            if (eventData) {
+              await serviceClient.from("tickets").insert({
+                order_id: orderRow.id,
+                event_id: eventData.id,
+                buyer_email: orderRow.buyer_email,
+                buyer_name: orderRow.buyer_name,
+                qr_code_data: `QR-${orderRow.id}`,
+              });
+            } else {
+              console.error("Event not found for product ID:", productId, "— ticket not created");
+            }
           }
         }
       }

@@ -70,13 +70,19 @@ export function FileUpload({
       try {
         const url = await onUpload(file);
         clearInterval(interval);
-        setUploadProgress(100);
-        if (url) {
+        if (!url) {
+          // onUpload returned null — treat as failure
+          setUploadProgress(0);
+          setError("Upload failed. Please try again.");
+          if (type === "image") setPreview(null);
+        } else {
+          setUploadProgress(100);
           setPreview(url);
         }
       } catch {
         clearInterval(interval);
         setError("Upload failed. Please try again.");
+        if (type === "image") setPreview(null);
       } finally {
         setIsUploading(false);
       }

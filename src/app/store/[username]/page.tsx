@@ -23,42 +23,48 @@ async function getStoreData(username: string) {
 
   const supabase = createServiceRoleClient();
   if (!supabase) {
-    // Fallback to mock data if Supabase client is not available
-    const storeData = getMockStorePublicData(username);
-    return storeData;
+    // Service client unavailable — fall back to mock for demo stores
+    return getMockStorePublicData(username) ?? null;
   }
 
-  const { data: creatorRow } = await supabase
-    .from("creators")
-    .select("*")
-    .eq("username", username)
-    .eq("is_active", true)
-    .single();
+  try {
+    const { data: creatorRow, error: creatorError } = await supabase
+      .from("creators")
+      .select("*")
+      .eq("username", username)
+      .eq("is_active", true)
+      .single();
 
-  if (!creatorRow) {
-    // Fallback to mock data for demo stores when no real creator found
-    const storeData = getMockStorePublicData(username);
-    return storeData;
+    if (creatorError || !creatorRow) {
+      // Creator not found in real DB — fall back to mock for demo stores
+      return getMockStorePublicData(username) ?? null;
+    }
+
+    const creator = mapCreatorFromDb(creatorRow);
+
+    const { data: productRows } = await supabase
+      .from("products")
+      .select("*")
+      .eq("creator_id", creator.id)
+      .eq("status", "active");
+
+    const products = (productRows || []).map((row) => mapProductFromDb(row));
+
+    return { creator, products };
+  } catch (err) {
+    // Database connection failure — return a sentinel so the page can show
+    // a graceful "service unavailable" message instead of crashing
+    console.error("Store page DB error for username", username, ":", err);
+    return "db_error" as const;
   }
-
-  const creator = mapCreatorFromDb(creatorRow);
-
-  const { data: productRows } = await supabase
-    .from("products")
-    .select("*")
-    .eq("creator_id", creator.id)
-    .eq("status", "active");
-
-  const products = (productRows || []).map((row) => mapProductFromDb(row));
-
-  return { creator, products };
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { username } = await params;
   const storeData = await getStoreData(username);
 
-  if (!storeData) {
+  // Handle both "not found" and "db error" cases
+  if (!storeData || storeData === "db_error") {
     return {
       title: "Store Not Found | Keevan Store",
       description: "The store you are looking for does not exist or has been deactivated.",
@@ -104,11 +110,33 @@ export default async function PublicStorePage({ params }: Props) {
   const { username } = await params;
   const storeData = await getStoreData(username);
 
+  // Database is temporarily unavailable — show a static fallback page
+  if (storeData === "db_error") {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <div className="max-w-md w-full text-center space-y-4">
+          <h1 className="text-2xl font-bold text-foreground">Store Temporarily Unavailable</h1>
+          <p className="text-muted-foreground text-sm">
+            We&apos;re experiencing a temporary service disruption. This store will be back shortly.
+            Please try again in a few minutes.
+          </p>
+          <a
+            href={`/store/${username}`}
+            className="inline-block mt-4 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm hover:bg-emerald-700"
+          >
+            Retry
+          </a>
+        </div>
+      </div>
+    );
+  }
+
   if (!storeData) {
     notFound();
   }
 
-  const { creator, products } = storeData;
+  // TypeScript narrowing: after notFound() and db_error guard, storeData is StorePublicData
+  const { creator, products } = storeData as import("@/types").StorePublicData;
 
   // JSON-LD: Person/ProfilePage schema for creator store
   const personSchema = {

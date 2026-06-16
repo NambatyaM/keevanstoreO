@@ -7,7 +7,9 @@ import { isUsingMockData, isMockUsernameAvailable, mockCreators, setMockPassword
 import { USERNAME_RULES } from "@/lib/constants";
 import { createServerSupabaseClient, createServiceRoleClient } from "@/lib/supabase/server";
 import { mapCreatorFromDb } from "@/lib/db-mappers";
-import { checkRateLimit, getClientId } from "@/lib/rate-limit";
+import { checkRateLimit, getClientId, rateLimitHeaders } from "@/lib/rate-limit";
+// FIXED: Blueprint Phase 3 — Zod validation
+import { signupSchema } from "@/lib/validations";
 import type { Creator } from "@/types";
 
 export async function POST(request: NextRequest) {
@@ -18,37 +20,23 @@ export async function POST(request: NextRequest) {
     if (!rateLimit.allowed) {
       return NextResponse.json(
         { success: false, error: "Too many signup attempts. Please try again later." },
-        { status: 429, headers: { "Retry-After": String(Math.ceil((rateLimit.resetTime - Date.now()) / 1000)) } }
+        { status: 429, headers: { "Retry-After": String(Math.ceil((rateLimit.resetTime - Date.now()) / 1000)), ...rateLimitHeaders(rateLimit) } }
       );
     }
 
-    const { email, password, username, displayName } = await request.json();
+    const body = await request.json();
 
-    if (!email || !password || !username || !displayName) {
+    // FIXED: Blueprint Phase 3 — Zod replaces manual validation
+    const parsed = signupSchema.safeParse(body);
+    if (!parsed.success) {
+      const firstError = parsed.error.issues[0];
       return NextResponse.json(
-        { success: false, error: "All fields are required" },
+        { success: false, error: firstError?.message ?? "Invalid request data" },
         { status: 400 }
       );
     }
 
-    // Validate username
-    if (
-      !USERNAME_RULES.PATTERN.test(username) ||
-      username.length < USERNAME_RULES.MIN_LENGTH ||
-      username.length > USERNAME_RULES.MAX_LENGTH
-    ) {
-      return NextResponse.json(
-        { success: false, error: USERNAME_RULES.PATTERN_MESSAGE },
-        { status: 400 }
-      );
-    }
-
-    if (password.length < 6) {
-      return NextResponse.json(
-        { success: false, error: "Password must be at least 6 characters" },
-        { status: 400 }
-      );
-    }
+    const { email, password, username, displayName } = parsed.data;
 
     if (isUsingMockData()) {
       // Check username availability

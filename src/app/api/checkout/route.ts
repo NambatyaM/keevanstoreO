@@ -15,7 +15,9 @@ import { PLATFORM_FEE_PERCENT } from "@/lib/constants";
 import { submitOrder, registerIPN } from "@/lib/pesapal";
 import { createServerSupabaseClient, createServiceRoleClient } from "@/lib/supabase/server";
 import { mapProductFromDb, mapOrderFromDb } from "@/lib/db-mappers";
-import { checkRateLimit, getClientId } from "@/lib/rate-limit";
+import { checkRateLimit, getClientId, rateLimitHeaders } from "@/lib/rate-limit";
+// FIXED: Blueprint Phase 3 — use Zod schema for validation
+import { checkoutSchema } from "@/lib/validations";
 import type { Order, OrderStatus, PaymentMethod } from "@/types";
 
 export async function POST(request: NextRequest) {
@@ -26,32 +28,23 @@ export async function POST(request: NextRequest) {
     if (!rateLimit.allowed) {
       return NextResponse.json(
         { success: false, error: "Too many checkout attempts. Please try again later." },
-        { status: 429 }
+        { status: 429, headers: rateLimitHeaders(rateLimit) }
       );
     }
 
     const body = await request.json();
-    const { productId, buyerEmail, buyerName, paymentMethod } = body;
 
-    // Validate required fields
-    if (!productId || !buyerEmail || !buyerName || !paymentMethod) {
+    // FIXED: Zod validation replaces ad-hoc manual checks
+    const parsed = checkoutSchema.safeParse(body);
+    if (!parsed.success) {
+      const firstError = parsed.error.issues[0];
       return NextResponse.json(
-        {
-          success: false,
-          error: "Missing required fields: productId, buyerEmail, buyerName, paymentMethod",
-        },
+        { success: false, error: firstError?.message ?? "Invalid request data" },
         { status: 400 }
       );
     }
 
-    // Validate buyer email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(buyerEmail.trim())) {
-      return NextResponse.json(
-        { success: false, error: "Invalid buyer email address" },
-        { status: 400 }
-      );
-    }
+    const { productId, buyerEmail, buyerName, paymentMethod } = parsed.data;
 
     if (isUsingMockData()) {
       // Get product details
@@ -79,6 +72,28 @@ export async function POST(request: NextRequest) {
             { status: 400 }
           );
         }
+      }
+
+      // Idempotency: if a pending order already exists for this buyer+product
+      // within the last 60 seconds, return it instead of creating a duplicate
+      const sixtySecondsAgo = new Date(Date.now() - 60 * 1000).toISOString();
+      const existingPendingOrder = mockOrders.find(
+        (o) =>
+          o.productId === productId &&
+          o.buyerEmail === buyerEmail.trim().toLowerCase() &&
+          o.status === "pending" &&
+          o.createdAt > sixtySecondsAgo
+      );
+      if (existingPendingOrder) {
+        return NextResponse.json({
+          success: true,
+          data: {
+            orderId: existingPendingOrder.id,
+            paymentUrl: `/payment/success?orderId=${existingPendingOrder.id}&trackingId=${existingPendingOrder.pesapalOrderTrackingId}`,
+            status: "pending",
+            order: existingPendingOrder,
+          },
+        });
       }
 
       // Calculate fees
@@ -219,9 +234,36 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const orderId = crypto.randomUUID();
+    // Idempotency: if a pending order already exists for this buyer+product
+    // within the last 60 seconds, return the existing payment URL
+    const sixtySecondsAgo = new Date(Date.now() - 60 * 1000).toISOString();
+    const { data: existingOrder } = await serviceClient
+      .from("orders")
+      .select("id, pesapal_order_tracking_id, download_token")
+      .eq("product_id", productId)
+      .eq("buyer_email", buyerEmail.trim().toLowerCase())
+      .eq("status", "pending")
+      .gte("created_at", sixtySecondsAgo)
+      .limit(1)
+      .maybeSingle();
 
-    // Register IPN with Pesapal
+    if (existingOrder) {
+      // Return existing pending order's redirect URL rather than creating a duplicate
+      // The buyer is redirected back to Pesapal where they can complete the original payment
+      console.log("Duplicate checkout detected, returning existing order:", existingOrder.id);
+      return NextResponse.json({
+        success: true,
+        data: {
+          orderId: existingOrder.id,
+          paymentUrl: existingOrder.pesapal_order_tracking_id
+            ? `${process.env.NEXT_PUBLIC_APP_URL}/api/pesapal/callback?OrderTrackingId=${existingOrder.pesapal_order_tracking_id}`
+            : "",
+          status: "pending",
+        },
+      });
+    }
+
+    const orderId = crypto.randomUUID();
     const ipnUrl = process.env.PESAPAL_IPN_URL || `${process.env.NEXT_PUBLIC_APP_URL}/api/pesapal/ipn`;
     const ipnId = await registerIPN(ipnUrl);
 

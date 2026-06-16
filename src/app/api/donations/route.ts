@@ -15,6 +15,7 @@ import { PLATFORM_FEE_PERCENT, MIN_PRODUCT_PRICE } from "@/lib/constants";
 import { createServerSupabaseClient, createServiceRoleClient } from "@/lib/supabase/server";
 import { mapDonationFromDb } from "@/lib/db-mappers";
 import { checkRateLimit, getClientId } from "@/lib/rate-limit";
+import { createDonationSchema } from "@/lib/validations";
 import type { Donation, Order, OrderStatus, PaymentMethod } from "@/types";
 
 export async function GET(request: NextRequest) {
@@ -107,46 +108,18 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { creatorId, donorEmail, donorName, amount, message, anonymous } =
-      body;
 
-    // Validate required fields
-    if (!creatorId || !amount) {
+    // FIXED: Blueprint Phase 4 — Zod validation replaces manual checks
+    const parsed = createDonationSchema.safeParse(body);
+    if (!parsed.success) {
+      const firstError = parsed.error.issues[0];
       return NextResponse.json(
-        {
-          success: false,
-          error: "Missing required fields: creatorId, amount",
-        },
+        { success: false, error: firstError?.message ?? "Invalid request data" },
         { status: 400 }
       );
     }
 
-    // Validate amount
-    if (typeof amount !== "number" || amount <= 0) {
-      return NextResponse.json(
-        { success: false, error: "Amount must be greater than 0" },
-        { status: 400 }
-      );
-    }
-
-    // Enforce minimum donation amount (UGX 1,000)
-    if (amount < MIN_PRODUCT_PRICE) {
-      return NextResponse.json(
-        { success: false, error: `Minimum donation amount is UGX ${MIN_PRODUCT_PRICE.toLocaleString()}` },
-        { status: 400 }
-      );
-    }
-
-    // Validate donor email when not anonymous
-    if (!anonymous && donorEmail) {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(donorEmail.trim())) {
-        return NextResponse.json(
-          { success: false, error: "Invalid donor email address" },
-          { status: 400 }
-        );
-      }
-    }
+    const { creatorId, donorEmail, donorName, amount, message, anonymous } = parsed.data;
 
     if (isUsingMockData()) {
       const creator = getMockCreatorById(creatorId);

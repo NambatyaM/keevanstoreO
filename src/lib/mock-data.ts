@@ -714,11 +714,15 @@ export function isMockUsernameAvailable(username: string): boolean {
 }
 
 // ── Mock Passwords ─────────────────────────────────────────
+// ⚠️  LOCAL DEVELOPMENT ONLY — These passwords are used exclusively in mock
+// mode (when NEXT_PUBLIC_SUPABASE_URL is not set). They are NEVER active in
+// production because production uses Supabase Auth for authentication.
+// Do NOT use these credentials on any real system.
 const mockPasswords: Record<string, string> = {
   "creator-1": "sarah123",
   "creator-2": "james123",
   "creator-3": "nina123",
-  "creator-admin": "Keeva#44",
+  "creator-admin": "dev-only-admin-password", // ⚠️ LOCAL DEV ONLY — change before any real use
 };
 
 export function getMockPassword(creatorId: string): string {

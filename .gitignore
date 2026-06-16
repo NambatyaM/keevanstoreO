@@ -73,3 +73,8 @@ local-*
 prompt
 server.log
 test
+
+/tool-results/
+/upload/
+/mini-services/
+*.db

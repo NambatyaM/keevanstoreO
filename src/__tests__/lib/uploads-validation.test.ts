@@ -394,8 +394,8 @@ describe('Upload Validation — Path Sanitization', () => {
   });
 
   it('Sanitizes bucket name to prevent traversal', () => {
-    // Simulating the route logic: bucket is always sanitized
-    const bucket = sanitizePathSegment('../../../malicious' || 'keevan-store');
+    // FIXED: TS2872 — removed dead-code || fallback; test the malicious input directly
+    const bucket = sanitizePathSegment('../../../malicious');
     expect(bucket).not.toContain('.');
     expect(bucket).not.toContain('/');
   });

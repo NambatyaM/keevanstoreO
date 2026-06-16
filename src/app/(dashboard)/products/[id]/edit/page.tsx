@@ -88,8 +88,10 @@ export default function EditProductPage() {
         setThumbnailUrl(data.data.url);
         return data.data.url;
       }
+      toast.error(data.error || "Thumbnail upload failed. Please try again.");
       return null;
     } catch {
+      toast.error("Upload service unavailable. Please try again.");
       return null;
     }
   };
@@ -107,8 +109,10 @@ export default function EditProductPage() {
         setFileName(data.data.fileName);
         return data.data.url;
       }
+      toast.error(data.error || "File upload failed. Please try again.");
       return null;
     } catch {
+      toast.error("Upload service unavailable. Please try again.");
       return null;
     }
   };
@@ -271,6 +275,7 @@ export default function EditProductPage() {
                 accept="*/*"
                 label="Replace File"
                 description="Upload a new file to replace the current one"
+                maxSize={100 * 1024 * 1024}
               />
             </CardContent>
           </Card>
