@@ -9,7 +9,11 @@
     "lint": "eslint .",
     "test": "vitest run",
     "db:push": "prisma db push",
+    "db:seed": "prisma db seed",
     "postinstall": "prisma generate"
+  },
+  "prisma": {
+    "seed": "ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1067.0",

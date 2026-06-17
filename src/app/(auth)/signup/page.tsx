@@ -120,12 +120,17 @@ export default function SignupPage() {
       return;
     }
 
-    const result = await signup(email, password, username, displayName);
-    if (result.success) {
-      toast.success("Welcome to Keevan Store! 🎉");
-      router.push("/dashboard");
-    } else {
-      toast.error(result.error || "Signup failed");
+    try {
+      const result = await signup(email, password, username, displayName);
+      if (result.success) {
+        toast.success("Welcome to Keevan Store! 🎉");
+        router.push("/dashboard");
+      } else {
+        toast.error(result.error || "Signup failed");
+      }
+    } catch (error) {
+      console.error("Signup error:", error);
+      toast.error("An unexpected error occurred. Please try again.");
     }
   };
 

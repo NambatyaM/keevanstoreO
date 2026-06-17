@@ -42,7 +42,16 @@ export const useAuth = create<AuthState>()(
             body: JSON.stringify({ email, password }),
           });
 
-          const data = await response.json();
+          let data;
+          try {
+            data = await response.json();
+          } catch {
+            set({ isLoading: false });
+            return {
+              success: false,
+              error: `Server error: ${response.status} ${response.statusText}`,
+            };
+          }
 
           if (data.success && data.data) {
             set({ user: data.data, isAuthenticated: true, isLoading: false });
@@ -51,9 +60,11 @@ export const useAuth = create<AuthState>()(
 
           set({ isLoading: false });
           return { success: false, error: data.error || "Login failed" };
-        } catch {
+        } catch (error) {
           set({ isLoading: false });
-          return { success: false, error: "Network error. Please try again." };
+          const message =
+            error instanceof Error ? error.message : "Network error. Please try again.";
+          return { success: false, error: message };
         }
       },
 
@@ -66,7 +77,16 @@ export const useAuth = create<AuthState>()(
             body: JSON.stringify({ email, password, username, displayName }),
           });
 
-          const data = await response.json();
+          let data;
+          try {
+            data = await response.json();
+          } catch {
+            set({ isLoading: false });
+            return {
+              success: false,
+              error: `Server error: ${response.status} ${response.statusText}`,
+            };
+          }
 
           if (data.success && data.data) {
             set({ user: data.data, isAuthenticated: true, isLoading: false });
@@ -75,9 +95,11 @@ export const useAuth = create<AuthState>()(
 
           set({ isLoading: false });
           return { success: false, error: data.error || "Signup failed" };
-        } catch {
+        } catch (error) {
           set({ isLoading: false });
-          return { success: false, error: "Network error. Please try again." };
+          const message =
+            error instanceof Error ? error.message : "Network error. Please try again.";
+          return { success: false, error: message };
         }
       },
 

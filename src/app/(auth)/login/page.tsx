@@ -30,20 +30,32 @@ export default function LoginPage() {
       return;
     }
 
-    const result = await login(email, password);
-    if (result.success) {
-      toast.success("Welcome back!");
-      router.push("/dashboard");
-    } else {
-      toast.error(result.error || "Login failed. Check your email and password.");
+    try {
+      const result = await login(email, password);
+      if (result.success) {
+        toast.success("Welcome back!");
+        router.push("/dashboard");
+      } else {
+        toast.error(result.error || "Login failed. Check your email and password.");
+      }
+    } catch (error) {
+      console.error("Login error:", error);
+      toast.error("An unexpected error occurred. Please try again.");
     }
   };
 
   const handleDemoLogin = async () => {
-    const result = await login("sarah@keevan.store", "sarah123");
-    if (result.success) {
-      toast.success("Welcome to the demo!");
-      router.push("/dashboard");
+    try {
+      const result = await login("sarah@keevan.store", "sarah123");
+      if (result.success) {
+        toast.success("Welcome to the demo!");
+        router.push("/dashboard");
+      } else {
+        toast.error(result.error || "Demo login failed");
+      }
+    } catch (error) {
+      console.error("Demo login error:", error);
+      toast.error("An unexpected error occurred. Please try again.");
     }
   };
 

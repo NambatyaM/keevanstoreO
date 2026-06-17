@@ -163,9 +163,18 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (insertError || !creatorRow) {
-      console.error("Failed to create creator profile:", insertError);
+      console.error("Failed to create creator profile:", {
+        error: insertError?.message,
+        code: insertError?.code,
+        details: insertError?.details,
+        hint: insertError?.hint,
+      });
       return NextResponse.json(
-        { success: false, error: "Failed to create creator profile" },
+        {
+          success: false,
+          error: insertError?.message || "Failed to create creator profile",
+          details: process.env.NODE_ENV === "development" ? insertError?.details : undefined
+        },
         { status: 500 }
       );
     }

@@ -98,8 +98,17 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (creatorError || !creatorRow) {
+      console.error("Failed to fetch creator profile:", {
+        error: creatorError?.message,
+        code: creatorError?.code,
+        userId: authData.user.id,
+      });
       return NextResponse.json(
-        { success: false, error: "Creator profile not found. Please contact support." },
+        {
+          success: false,
+          error: creatorError?.message || "Creator profile not found. Please contact support.",
+          details: process.env.NODE_ENV === "development" ? creatorError?.details : undefined
+        },
         { status: 404 }
       );
     }
