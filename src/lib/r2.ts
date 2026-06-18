@@ -51,13 +51,19 @@ export async function uploadFile(
 
   if (!client) {
     console.log("R2 not configured, using mock mode");
-    // Mock: save to temporary directory (Vercel filesystem is read-only except /tmp)
-    const uploadDir = path.join(os.tmpdir(), "keevan-uploads", bucket);
-    await mkdir(uploadDir, { recursive: true });
-    const filePath = path.join(uploadDir, key);
-    await writeFile(filePath, body);
-    console.log(`File saved to mock path: ${filePath}`);
-    return `/uploads/${bucket}/${key}`;
+    try {
+      // Mock: save to temporary directory (Vercel filesystem is read-only except /tmp)
+      const uploadDir = path.join(os.tmpdir(), "keevan-uploads", bucket);
+      await mkdir(uploadDir, { recursive: true });
+      const filePath = path.join(uploadDir, key);
+      await writeFile(filePath, body);
+      console.log(`File saved to mock path: ${filePath}`);
+      // Return a URL that can be served by the /uploads/[...path] route
+      return `/uploads/${bucket}/${key}`;
+    } catch (error) {
+      console.error("Mock upload failed:", error);
+      throw new Error("File upload failed: Could not save file in mock mode");
+    }
   }
 
   try {
@@ -73,7 +79,7 @@ export async function uploadFile(
     return `https://${bucket}.${R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${key}`;
   } catch (error) {
     console.error("R2 upload error:", error);
-    throw error;
+    throw new Error("File upload failed: Could not upload to R2 storage");
   }
 }
 
