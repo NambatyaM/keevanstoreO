@@ -50,24 +50,31 @@ export async function uploadFile(
   const client = getR2Client();
 
   if (!client) {
+    console.log("R2 not configured, using mock mode");
     // Mock: save to temporary directory (Vercel filesystem is read-only except /tmp)
     const uploadDir = path.join(os.tmpdir(), "keevan-uploads", bucket);
     await mkdir(uploadDir, { recursive: true });
     const filePath = path.join(uploadDir, key);
     await writeFile(filePath, body);
+    console.log(`File saved to mock path: ${filePath}`);
     return `/uploads/${bucket}/${key}`;
   }
 
-  await client.send(
-    new PutObjectCommand({
-      Bucket: bucket,
-      Key: key,
-      Body: body,
-      ContentType: contentType,
-    })
-  );
-
-  return `https://${bucket}.${R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${key}`;
+  try {
+    await client.send(
+      new PutObjectCommand({
+        Bucket: bucket,
+        Key: key,
+        Body: body,
+        ContentType: contentType,
+      })
+    );
+    console.log(`File uploaded to R2: ${bucket}/${key}`);
+    return `https://${bucket}.${R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${key}`;
+  } catch (error) {
+    console.error("R2 upload error:", error);
+    throw error;
+  }
 }
 
 export async function deleteFile(

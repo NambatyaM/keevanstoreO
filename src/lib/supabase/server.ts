@@ -18,28 +18,34 @@ const isSupabaseConfigured =
 
 export async function createServerSupabaseClient() {
   if (!isSupabaseConfigured) {
+    console.warn("Supabase not configured, using mock mode");
     return null;
   }
 
-  const cookieStore = await cookies();
+  try {
+    const cookieStore = await cookies();
 
-  return createServerClient(SUPABASE_URL!, SUPABASE_ANON_KEY!, {
-    cookies: {
-      getAll() {
-        return cookieStore.getAll();
+    return createServerClient(SUPABASE_URL!, SUPABASE_ANON_KEY!, {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll();
+        },
+        setAll(cookiesToSet) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) =>
+              cookieStore.set(name, value, options)
+            );
+          } catch {
+            // The `setAll` method was called from a Server Component.
+            // This can be ignored if you have middleware refreshing sessions.
+          }
+        },
       },
-      setAll(cookiesToSet) {
-        try {
-          cookiesToSet.forEach(({ name, value, options }) =>
-            cookieStore.set(name, value, options)
-          );
-        } catch {
-          // The `setAll` method was called from a Server Component.
-          // This can be ignored if you have middleware refreshing sessions.
-        }
-      },
-    },
-  });
+    });
+  } catch (error) {
+    console.error("Failed to create Supabase client:", error instanceof Error ? error.message : String(error));
+    return null;
+  }
 }
 
 /**
@@ -55,10 +61,16 @@ export function createServiceRoleClient() {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
   if (!url || !key) {
+    console.warn("Supabase service role credentials not configured");
     return null;
   }
 
-  return createClient(url, key);
+  try {
+    return createClient(url, key);
+  } catch (error) {
+    console.error("Failed to create Supabase service role client:", error instanceof Error ? error.message : String(error));
+    return null;
+  }
 }
 
 export async function getAuthenticatedUser() {

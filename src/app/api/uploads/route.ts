@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
     const authResult = await verifyAuth(request);
     if (!authResult.isAuthenticated) {
       return NextResponse.json(
-        { success: false, error: "Unauthorized: authentication required" },
+        { success: false, error: "Unauthorized: Please log in to upload files" },
         { status: 401 }
       );
     }
@@ -123,8 +123,9 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error("Error in uploads POST:", error instanceof Error ? error.message : String(error));
+    console.error("Error details:", error);
     return NextResponse.json(
-      { success: false, error: "Upload failed" },
+      { success: false, error: "Upload failed. Please check your connection and try again." },
       { status: 500 }
     );
   }
