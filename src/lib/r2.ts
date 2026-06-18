@@ -26,9 +26,18 @@ const isR2Configured =
 let r2Client: S3Client | null = null;
 
 function getR2Client(): S3Client | null {
-  if (!isR2Configured) return null;
+  if (!isR2Configured) {
+    console.log("R2 not configured - missing credentials:", {
+      hasAccountId: !!R2_ACCOUNT_ID,
+      hasAccessKeyId: !!R2_ACCESS_KEY_ID,
+      hasSecretKey: !!R2_SECRET_ACCESS_KEY,
+      accountId: R2_ACCOUNT_ID ? `${R2_ACCOUNT_ID.substring(0, 8)}...` : "missing",
+    });
+    return null;
+  }
   if (r2Client) return r2Client;
 
+  console.log("Initializing R2 client with account:", R2_ACCOUNT_ID);
   r2Client = new S3Client({
     region: "auto",
     endpoint: `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,

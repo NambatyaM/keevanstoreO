@@ -42,10 +42,13 @@ function sanitizePathSegment(input: string): string {
 
 export async function POST(request: NextRequest) {
   try {
+    console.log("Upload request received");
+    
     // Rate limit: 10 uploads per minute per IP
     const clientId = getClientId(request);
     const rateLimit = checkRateLimit(`uploads:${clientId}`, 10, 60 * 1000);
     if (!rateLimit.allowed) {
+      console.log("Rate limit exceeded for client:", clientId);
       return NextResponse.json(
         { success: false, error: "Too many upload attempts. Please try again later." },
         { status: 429 }
@@ -55,11 +58,14 @@ export async function POST(request: NextRequest) {
     // Authentication check — user must be logged in
     const authResult = await verifyAuth(request);
     if (!authResult.isAuthenticated) {
+      console.log("Upload failed: User not authenticated");
       return NextResponse.json(
         { success: false, error: "Unauthorized: Please log in to upload files" },
         { status: 401 }
       );
     }
+    
+    console.log("User authenticated successfully:", authResult.userId);
 
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
@@ -67,11 +73,14 @@ export async function POST(request: NextRequest) {
     const rawFolder = (formData.get("folder") as string) || "uploads";
 
     if (!file) {
+      console.log("Upload failed: No file provided");
       return NextResponse.json(
         { success: false, error: "No file provided" },
         { status: 400 }
       );
     }
+
+    console.log("File received:", { name: file.name, size: file.size, type: file.type });
 
     // Validate folder name against allowlist
     const folder = ALLOWED_FOLDERS.includes(rawFolder) ? rawFolder : "uploads";
@@ -108,8 +117,13 @@ export async function POST(request: NextRequest) {
     const randomStr = Math.random().toString(36).slice(2, 8);
     const key = `${folder}/${timestamp}-${randomStr}.${ext}`;
 
+    console.log("Starting upload to:", { bucket, key, contentType: file.type });
+
     const buffer = Buffer.from(await file.arrayBuffer());
+    console.log("Buffer created, size:", buffer.length);
+    
     const url = await uploadFile(bucket, key, buffer, file.type);
+    console.log("Upload successful, URL:", url);
 
     return NextResponse.json({
       success: true,
@@ -123,9 +137,25 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error("Error in uploads POST:", error instanceof Error ? error.message : String(error));
-    console.error("Error details:", error);
+    console.error("Error stack:", error instanceof Error ? error.stack : "No stack trace");
+    console.error("Error details:", JSON.stringify(error, Object.getOwnPropertyNames(error)));
+    
+    // Provide more specific error message
+    let errorMessage = "Upload failed. Please check your connection and try again.";
+    if (error instanceof Error) {
+      if (error.message.includes("EACCES") || error.message.includes("permission")) {
+        errorMessage = "Upload failed: Permission denied. Please check file permissions.";
+      } else if (error.message.includes("ENOENT")) {
+        errorMessage = "Upload failed: Directory not found. Please check server configuration.";
+      } else if (error.message.includes("ENOSPC")) {
+        errorMessage = "Upload failed: Server storage full. Please contact support.";
+      } else if (error.message.includes("network") || error.message.includes("fetch")) {
+        errorMessage = "Upload failed: Network error. Please check your connection.";
+      }
+    }
+    
     return NextResponse.json(
-      { success: false, error: "Upload failed. Please check your connection and try again." },
+      { success: false, error: errorMessage, details: error instanceof Error ? error.message : String(error) },
       { status: 500 }
     );
   }
