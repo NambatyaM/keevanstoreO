@@ -19,7 +19,8 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const { login, isLoading } = useAuth();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { login } = useAuth();
   const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -45,6 +46,7 @@ export default function LoginPage() {
   };
 
   const handleDemoLogin = async () => {
+    setIsSubmitting(true);
     try {
       const result = await login("sarah@keevan.store", "sarah123");
       if (result.success) {
@@ -56,6 +58,8 @@ export default function LoginPage() {
     } catch (error) {
       console.error("Demo login error:", error);
       toast.error("An unexpected error occurred. Please try again.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -132,9 +136,9 @@ export default function LoginPage() {
               <Button
                 type="submit"
                 className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
-                disabled={isLoading}
+                disabled={isSubmitting}
               >
-                {isLoading ? (
+                {isSubmitting ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                     Signing in...
@@ -158,7 +162,7 @@ export default function LoginPage() {
                 variant="outline"
                 className="w-full"
                 onClick={handleDemoLogin}
-                disabled={isLoading}
+                disabled={isSubmitting}
               >
                 Try Demo Account
               </Button>

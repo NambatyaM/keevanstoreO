@@ -37,7 +37,8 @@ export default function SignupPage() {
   const [usernameStatus, setUsernameStatus] = useState<
     "idle" | "checking" | "available" | "taken" | "invalid"
   >("idle");
-  const { signup, isLoading } = useAuth();
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const { signup } = useAuth();
   const router = useRouter();
 
   // Debounced username check
@@ -120,6 +121,7 @@ export default function SignupPage() {
       return;
     }
 
+    setIsSubmitting(true);
     try {
       const result = await signup(email, password, username, displayName);
       if (result.success) {
@@ -131,6 +133,8 @@ export default function SignupPage() {
     } catch (error) {
       console.error("Signup error:", error);
       toast.error("An unexpected error occurred. Please try again.");
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -310,9 +314,9 @@ export default function SignupPage() {
               <Button
                 type="submit"
                 className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
-                disabled={isLoading}
+                disabled={isSubmitting}
               >
-                {isLoading ? (
+                {isSubmitting ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                     Creating account...
