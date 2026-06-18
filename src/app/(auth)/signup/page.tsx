@@ -125,7 +125,7 @@ export default function SignupPage() {
     try {
       const result = await signup(email, password, username, displayName);
       if (result.success) {
-        toast.success("Welcome to Keevan Store! 🎉");
+        toast.success("Welcome to Keevan Store! 🎉 Please check your email to confirm your account.");
         router.push("/dashboard");
       } else {
         toast.error(result.error || "Signup failed");
@@ -325,6 +325,10 @@ export default function SignupPage() {
                   "Create Account"
                 )}
               </Button>
+
+              <p className="text-xs text-muted-foreground text-center">
+                By creating an account, you agree to receive a confirmation email. Please check your inbox to activate your account.
+              </p>
 
               <p className="text-sm text-muted-foreground text-center">
                 Already have an account?{" "}
