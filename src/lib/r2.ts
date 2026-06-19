@@ -21,7 +21,8 @@ const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME || "keevanstore";
 const isR2Configured =
   R2_ACCOUNT_ID && R2_ACCOUNT_ID !== "mock" &&
   R2_ACCESS_KEY_ID && R2_ACCESS_KEY_ID !== "mock" &&
-  R2_SECRET_ACCESS_KEY && R2_SECRET_ACCESS_KEY !== "mock";
+  R2_SECRET_ACCESS_KEY && R2_SECRET_ACCESS_KEY !== "mock" &&
+  R2_BUCKET_NAME && R2_BUCKET_NAME !== "mock";
 
 let r2Client: S3Client | null = null;
 

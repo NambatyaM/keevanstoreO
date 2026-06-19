@@ -145,6 +145,8 @@ export async function POST(request: NextRequest) {
     // Insert creator profile using service role client (bypasses RLS)
     const serviceClient = createServiceRoleClient();
     if (!serviceClient) {
+      // Rollback: delete the auth user if profile creation fails
+      await supabase.auth.admin.deleteUser(authData.user.id);
       return NextResponse.json(
         { success: false, error: "Service client not available" },
         { status: 500 }
@@ -169,11 +171,12 @@ export async function POST(request: NextRequest) {
         details: insertError?.details,
         hint: insertError?.hint,
       });
+      // Rollback: delete the auth user if profile creation fails
+      await supabase.auth.admin.deleteUser(authData.user.id);
       return NextResponse.json(
         {
           success: false,
           error: insertError?.message || "Failed to create creator profile",
-          details: process.env.NODE_ENV === "development" ? insertError?.details : undefined
         },
         { status: 500 }
       );

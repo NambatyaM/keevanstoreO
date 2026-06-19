@@ -38,6 +38,11 @@ export async function GET(
       );
     }
 
+    // IDOR check: only allow creator to fetch their own product
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
     const { data: productRow, error } = await supabase
       .from("products")
       .select("*")
@@ -45,6 +50,14 @@ export async function GET(
       .single();
 
     if (error || !productRow) {
+      return NextResponse.json(
+        { success: false, error: "Product not found" },
+        { status: 404 }
+      );
+    }
+
+    // Only allow the product owner to view unpublished products
+    if (productRow.status !== "active" && (!user || productRow.creator_id !== user.id)) {
       return NextResponse.json(
         { success: false, error: "Product not found" },
         { status: 404 }

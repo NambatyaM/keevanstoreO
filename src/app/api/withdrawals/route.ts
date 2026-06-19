@@ -213,23 +213,44 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create withdrawal using the RLS-enabled client (creator is authenticated)
-    const withdrawalData = mapWithdrawalToDb({
-      creatorId,
-      amount,
-      phoneNumber,
-      provider,
-    });
-    withdrawalData.status = "pending";
+    // Use service role client for atomic balance deduction and withdrawal creation
+    const serviceClient = createServiceRoleClient();
+    if (!serviceClient) {
+      return NextResponse.json(
+        { success: false, error: "Service client not available" },
+        { status: 500 }
+      );
+    }
 
-    const { data: withdrawalRow, error: insertError } = await supabase
+    // Atomic transaction: deduct balance and create withdrawal record
+    const { error: txError } = await serviceClient.rpc("process_withdrawal_request", {
+      p_creator_id: creatorId,
+      p_amount: amount,
+      p_phone_number: phoneNumber,
+      p_provider: provider,
+    });
+
+    if (txError) {
+      console.error("Error processing withdrawal request via RPC:", txError);
+      return NextResponse.json(
+        { success: false, error: txError.message || "Failed to create withdrawal request" },
+        { status: 500 }
+      );
+    }
+
+    // Fetch the created withdrawal to return
+    const { data: withdrawalRow, error: fetchError } = await serviceClient
       .from("withdrawals")
-      .insert(withdrawalData)
-      .select()
+      .select("*")
+      .eq("creator_id", creatorId)
+      .eq("amount", amount)
+      .eq("status", "pending")
+      .order("requested_at", { ascending: false })
+      .limit(1)
       .single();
 
-    if (insertError || !withdrawalRow) {
-      console.error("Error creating withdrawal:", insertError);
+    if (fetchError || !withdrawalRow) {
+      console.error("Error fetching created withdrawal:", fetchError);
       return NextResponse.json(
         { success: false, error: "Failed to create withdrawal request" },
         { status: 500 }
@@ -238,7 +259,7 @@ export async function POST(request: NextRequest) {
 
     const withdrawal = mapWithdrawalFromDb(withdrawalRow);
 
-       // Get creator info for WhatsApp notification
+    // Get creator info for WhatsApp notification
     const { data: creatorInfo } = await supabase
       .from("creators")
       .select("display_name, email")

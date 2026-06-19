@@ -9,7 +9,15 @@ import { getTransactionStatus } from "@/lib/pesapal";
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { OrderTrackingId, OrderNotificationType, OrderMerchantReference } = body;
+    let { OrderTrackingId, OrderNotificationType, OrderMerchantReference } = body;
+
+    // Pesapal may send OrderTrackingId in query params in some configurations
+    if (!OrderTrackingId) {
+      OrderTrackingId = request.nextUrl.searchParams.get("OrderTrackingId") || undefined;
+    }
+    if (!OrderMerchantReference) {
+      OrderMerchantReference = request.nextUrl.searchParams.get("OrderMerchantReference") || undefined;
+    }
 
     console.log("Pesapal IPN received:", {
       OrderTrackingId,

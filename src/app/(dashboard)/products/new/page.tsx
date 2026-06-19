@@ -284,8 +284,8 @@ export default function NewProductPage() {
                 type="file"
                 accept="*/*"
                 label="Digital File"
-                description="Any file type, max 100MB"
-                maxSize={100 * 1024 * 1024}
+                description="Any file type, max 4MB"
+                maxSize={4 * 1024 * 1024}
               />
             </CardContent>
           </Card>

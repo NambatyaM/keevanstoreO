@@ -177,30 +177,22 @@ export async function PATCH(request: NextRequest) {
     }
 
     if (action === "approve") {
-      // Use the process_withdrawal_approval RPC function for atomicity
-      const { data: rpcResult, error: rpcError } = await serviceClient.rpc(
-        "process_withdrawal_approval",
-        { p_withdrawal_id: withdrawalId }
-      );
-
-      if (rpcError) {
-        console.error("Error processing withdrawal approval via RPC:", rpcError);
-        return NextResponse.json(
-          { success: false, error: rpcError.message || "Failed to approve withdrawal" },
-          { status: 500 }
-        );
-      }
-
-      // Fetch the updated withdrawal to return
-      const { data: updatedRow, error: fetchError } = await serviceClient
+      // Balance was already deducted at request time via process_withdrawal_request RPC
+      // Here we only update the status to "completed" - do NOT deduct balance again
+      const { data: updatedRow, error: updateError } = await serviceClient
         .from("withdrawals")
-        .select("*")
+        .update({
+          status: "completed",
+          processed_at: new Date().toISOString(),
+        })
         .eq("id", withdrawalId)
+        .select()
         .single();
 
-      if (fetchError || !updatedRow) {
+      if (updateError || !updatedRow) {
+        console.error("Error approving withdrawal:", updateError);
         return NextResponse.json(
-          { success: false, error: "Withdrawal approved but could not fetch updated record" },
+          { success: false, error: "Failed to approve withdrawal" },
           { status: 500 }
         );
       }
@@ -211,7 +203,34 @@ export async function PATCH(request: NextRequest) {
         data: withdrawal,
       });
     } else {
-      // Reject withdrawal
+      // Reject withdrawal - refund the balance back to the creator
+      const { data: withdrawalRow } = await serviceClient
+        .from("withdrawals")
+        .select("creator_id, amount")
+        .eq("id", withdrawalId)
+        .single();
+
+      if (!withdrawalRow) {
+        return NextResponse.json(
+          { success: false, error: "Withdrawal not found" },
+          { status: 404 }
+        );
+      }
+
+      // Refund balance atomically using RPC
+      const { error: refundError } = await serviceClient.rpc("refund_withdrawal", {
+        p_withdrawal_id: withdrawalId,
+      });
+
+      if (refundError) {
+        console.error("Error refunding withdrawal:", refundError);
+        return NextResponse.json(
+          { success: false, error: "Failed to refund withdrawal" },
+          { status: 500 }
+        );
+      }
+
+      // Update withdrawal status to rejected
       const { data: updatedRow, error: updateError } = await serviceClient
         .from("withdrawals")
         .update({
@@ -223,9 +242,9 @@ export async function PATCH(request: NextRequest) {
         .single();
 
       if (updateError || !updatedRow) {
-        console.error("Error updating withdrawal:", updateError);
+        console.error("Error updating withdrawal status:", updateError);
         return NextResponse.json(
-          { success: false, error: "Failed to update withdrawal" },
+          { success: false, error: "Failed to update withdrawal status" },
           { status: 500 }
         );
       }

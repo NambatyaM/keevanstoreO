@@ -51,8 +51,10 @@ export default function StoreSettingsPage() {
         setPhotoUrl(data.data.url);
         return data.data.url;
       }
+      toast.error(data.error || "Photo upload failed. Please try again.");
       return null;
     } catch {
+      toast.error("Upload service unavailable. Please try again.");
       return null;
     }
   };
@@ -69,8 +71,10 @@ export default function StoreSettingsPage() {
         setBannerUrl(data.data.url);
         return data.data.url;
       }
+      toast.error(data.error || "Banner upload failed. Please try again.");
       return null;
     } catch {
+      toast.error("Upload service unavailable. Please try again.");
       return null;
     }
   };

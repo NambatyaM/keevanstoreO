@@ -23,7 +23,7 @@ interface FileUploadProps {
 export function FileUpload({
   onUpload,
   accept = "image/*",
-  maxSize = 10 * 1024 * 1024, // 10MB default
+  maxSize = 2 * 1024 * 1024, // 2MB default for images, 4MB for files
   currentUrl,
   label = "Upload File",
   description,
@@ -79,9 +79,10 @@ export function FileUpload({
           setUploadProgress(100);
           setPreview(url);
         }
-      } catch {
+      } catch (error) {
         clearInterval(interval);
-        setError("Upload failed. Please try again.");
+        const errorMessage = error instanceof Error ? error.message : "Upload failed. Please try again.";
+        setError(errorMessage);
         if (type === "image") setPreview(null);
       } finally {
         setIsUploading(false);

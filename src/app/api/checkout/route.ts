@@ -23,6 +23,8 @@ import type { Order, OrderStatus, PaymentMethod } from "@/types";
 export async function POST(request: NextRequest) {
   try {
     // Rate limit: 10 checkout attempts per minute per IP
+    // NOTE: This uses in-memory Map on globalThis which does NOT persist across Vercel serverless instances.
+    // Each cold start resets the rate limit. For production, implement @upstash/ratelimit with Redis.
     const clientId = getClientId(request);
     const rateLimit = checkRateLimit(`checkout:${clientId}`, 10, 60 * 1000);
     if (!rateLimit.allowed) {

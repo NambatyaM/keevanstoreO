@@ -21,8 +21,10 @@ const ALLOWED_MIME_TYPES: Record<string, string[]> = {
 
 const ALL_ALLOWED_MIMES = Object.values(ALLOWED_MIME_TYPES).flat();
 
-const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100 MB
-const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10 MB for images
+// Vercel serverless functions have a 4.5MB body limit on free plan
+// We set limits slightly below to account for overhead
+const MAX_FILE_SIZE = 4 * 1024 * 1024; // 4 MB (Vercel free tier limit)
+const MAX_IMAGE_SIZE = 2 * 1024 * 1024; // 2 MB for images
 
 // Allowed folder names (prevents path traversal)
 const ALLOWED_FOLDERS = ["thumbnails", "products", "profiles", "banners", "uploads"];
@@ -90,7 +92,7 @@ export async function POST(request: NextRequest) {
     const maxSize = isImage ? MAX_IMAGE_SIZE : MAX_FILE_SIZE;
     if (file.size > maxSize) {
       return NextResponse.json(
-        { success: false, error: `File too large. Maximum size is ${isImage ? "10MB" : "100MB"}` },
+        { success: false, error: `File too large. Maximum size is ${isImage ? "2MB" : "4MB"} for images and files respectively` },
         { status: 400 }
       );
     }

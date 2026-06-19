@@ -197,6 +197,26 @@ export async function POST(request: NextRequest) {
     }
 
     // Real Supabase flow
+    const supabase = await createServerSupabaseClient();
+    if (!supabase) {
+      return NextResponse.json(
+        { success: false, error: "Supabase not configured" },
+        { status: 500 }
+      );
+    }
+
+    // Verify authenticated user
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: "Unauthorized" },
+        { status: 403 }
+      );
+    }
+
     const serviceClient = createServiceRoleClient();
     if (!serviceClient) {
       return NextResponse.json(
@@ -208,7 +228,7 @@ export async function POST(request: NextRequest) {
     // Get the ticket from the tickets table
     const { data: ticketRow, error: fetchError } = await serviceClient
       .from("tickets")
-      .select("*")
+      .select("*, events!inner(product_id, creator_id)")
       .eq("id", ticketId)
       .single();
 
@@ -216,6 +236,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { success: false, error: "Ticket not found" },
         { status: 404 }
+      );
+    }
+
+    // Ownership check: only the event creator can check in attendees
+    const eventData = ticketRow.events as Record<string, unknown>;
+    if (eventData?.creator_id !== user.id) {
+      return NextResponse.json(
+        { success: false, error: "Forbidden: you can only check in attendees for your own events" },
+        { status: 403 }
+      );
+    }
+
+    // Check if already checked in
+    if (action === "checkin" && ticketRow.checked_in) {
+      return NextResponse.json(
+        { success: false, error: "Ticket already checked in" },
+        { status: 400 }
       );
     }
 
