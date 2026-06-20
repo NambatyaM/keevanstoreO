@@ -32,29 +32,33 @@ const features = [
     icon: Download,
     title: "Digital Products",
     description:
-      "Sell e-books, templates, presets, beats, and any digital file. Automatic delivery after purchase with a secure download link sent directly to the buyer's email.",
+      "Sell e-books, templates, presets, beats, and any digital file. Automatic delivery after purchase. Start selling today.",
     color: "text-blue-600 bg-blue-50 dark:bg-blue-950/30",
+    link: "/signup",
   },
   {
     icon: Calendar,
     title: "Event Tickets",
     description:
-      "Create and sell tickets for events, workshops, and experiences. Built-in QR code check-in system for managing attendees at the door.",
+      "Create and sell tickets for events, workshops, and experiences. Built-in QR code check-in system. Easy event management.",
     color: "text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30",
+    link: "/signup",
   },
   {
     icon: Heart,
     title: "Donations",
     description:
-      "Accept donations from your supporters with optional fundraising goals and progress tracking. Build your community with direct fan support.",
+      "Accept donations from your supporters with fundraising goals. Build your community with direct fan support. Simple setup.",
     color: "text-rose-600 bg-rose-50 dark:bg-rose-950/30",
+    link: "/signup",
   },
   {
     icon: BarChart3,
     title: "Analytics",
     description:
-      "Track sales, views, and revenue in real-time with date-range filtering. See which products perform best and optimize your strategy.",
+      "Track sales, views, and revenue in real-time. See which products perform best. Make data-driven decisions.",
     color: "text-amber-600 bg-amber-50 dark:bg-amber-950/30",
+    link: "/signup",
   },
 ];
 
@@ -131,12 +135,30 @@ export default function LandingPage() {
     })),
   };
 
+  // Breadcrumb structured data
+  const breadcrumbSchema = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      {
+        "@type": "ListItem",
+        position: 1,
+        name: "Home",
+        item: "https://www.keevanstore.in",
+      },
+    ],
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-background">
       {/* JSON-LD Structured Data */}
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: sanitizeForJsonLd(JSON.stringify(faqSchema)) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: sanitizeForJsonLd(JSON.stringify(breadcrumbSchema)) }}
       />
 
       {/* Header */}
@@ -251,21 +273,23 @@ export default function LandingPage() {
                 transition={{ duration: 0.4, delay: i * 0.1 }}
                 viewport={{ once: true }}
               >
-                <Card className="h-full hover:shadow-lg transition-shadow">
-                  <CardContent className="p-6">
-                    <div
-                      className={`h-12 w-12 rounded-lg ${feature.color} flex items-center justify-center mb-4`}
-                    >
-                      <feature.icon className="h-6 w-6" />
-                    </div>
-                    <h3 className="font-semibold text-foreground text-lg">
-                      {feature.title}
-                    </h3>
-                    <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
-                      {feature.description}
-                    </p>
-                  </CardContent>
-                </Card>
+                <Link href={feature.link}>
+                  <Card className="h-full hover:shadow-lg transition-shadow cursor-pointer">
+                    <CardContent className="p-6">
+                      <div
+                        className={`h-12 w-12 rounded-lg ${feature.color} flex items-center justify-center mb-4`}
+                      >
+                        <feature.icon className="h-6 w-6" />
+                      </div>
+                      <h3 className="font-semibold text-foreground text-lg">
+                        {feature.title}
+                      </h3>
+                      <p className="mt-2 text-sm text-muted-foreground leading-relaxed">
+                        {feature.description}
+                      </p>
+                    </CardContent>
+                  </Card>
+                </Link>
               </motion.div>
             ))}
           </div>

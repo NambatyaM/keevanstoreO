@@ -21,4 +21,4 @@ Disallow: /signup
 Disallow: /payment/
 
 # Sitemap
-Sitemap: https://keevanstore.in/sitemap.xml
+Sitemap: https://www.keevanstore.in/sitemap.xml

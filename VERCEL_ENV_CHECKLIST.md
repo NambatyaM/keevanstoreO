@@ -18,22 +18,22 @@ This checklist contains all environment variables that must be set in your Verce
   - ⚠️ **IMPORTANT**: This is a secret - do NOT add NEXT_PUBLIC_ prefix
 
 ### Application
-- **NEXT_PUBLIC_APP_URL** - Your production URL (e.g., `https://keevanstore.in`)
+- **NEXT_PUBLIC_APP_URL** - Your production URL (e.g., `https://www.keevanstore.in`)
   - Set this to your actual production domain
 
-### Cloudflare R2 Storage (Optional - falls back to mock mode if not set)
+### Cloudflare R2 Storage (Required in production for file uploads)
 - **R2_ACCOUNT_ID** - Cloudflare R2 account ID
 - **R2_ACCESS_KEY_ID** - R2 access key ID
 - **R2_SECRET_ACCESS_KEY** - R2 secret access key
 - **R2_BUCKET_NAME** - R2 bucket name (e.g., `keevanstore`)
   - ⚠️ **IMPORTANT**: All R2 variables are secrets - do NOT add NEXT_PUBLIC_ prefix
 
-### Pesapal Payment Gateway (Optional - falls back to mock mode if not set)
+### Pesapal Payment Gateway (Optional - payments will fail without it)
 - **PESAPAL_CONSUMER_KEY** - Pesapal consumer key
 - **PESAPAL_CONSUMER_SECRET** - Pesapal consumer secret
 - **PESAPAL_API_URL** - Pesapal API URL (default: `https://cybqa.pesapal.com/pesapalv3/api` for sandbox)
 - **PESAPAL_MODE** - Set to `live` for production, `sandbox` or omit for test mode
-- **PESAPAL_IPN_URL** - Your production IPN webhook URL (e.g., `https://keevanstore.in/api/pesapal/ipn`)
+- **PESAPAL_IPN_URL** - Your production IPN webhook URL (e.g., `https://www.keevanstore.in/api/pesapal/ipn`)
   - ⚠️ **IMPORTANT**: This MUST be set to your production URL, NOT localhost
   - ⚠️ **IMPORTANT**: All Pesapal variables are secrets - do NOT add NEXT_PUBLIC_ prefix
 
@@ -53,10 +53,10 @@ This checklist contains all environment variables that must be set in your Verce
 ### Production (Vercel)
 - All required variables must be set in Vercel project settings
 - Use production Supabase credentials
-- Use production R2 credentials (if using R2)
-- Use production Pesapal credentials (if using Pesapal)
-- Set `NEXT_PUBLIC_APP_URL` to your actual production domain
-- Set `PESAPAL_IPN_URL` to your production IPN webhook URL
+- Use production R2 credentials (required for file uploads)
+- Use production Pesapal credentials (required for payments)
+- Set `NEXT_PUBLIC_APP_URL` to `https://www.keevanstore.in`
+- Set `PESAPAL_IPN_URL` to `https://www.keevanstore.in/api/pesapal/ipn`
 - Set `PESAPAL_MODE` to `live` for production payments
 
 ## Security Notes
