@@ -1,6 +1,7 @@
 // ============================================================
 // Graceful Degradation Utility
 // Provides fallback behavior when external services are unavailable
+// Note: R2 storage no longer has a fallback mode - it is required in production
 // ============================================================
 
 import { isR2Configured } from "./env-validation";
@@ -43,12 +44,12 @@ export function getServiceStatusMessage(): string {
  */
 export function logServiceStatus(): void {
   const status = getServiceStatus();
-  
+
   console.log("=== Service Status ===");
   console.log(`Database: ${status.database ? "✅ Configured" : "⚠️  Not configured (using mock mode)"}`);
   console.log(`Supabase: ${status.supabase ? "✅ Configured" : "⚠️  Not configured (using mock mode)"}`);
-  console.log(`R2 Storage: ${status.r2 ? "✅ Configured" : "⚠️  Not configured (using mock mode)"}`);
-  console.log(`Pesapal: ${status.pesapal ? "✅ Configured" : "⚠️  Not configured (using mock mode)"}`);
+  console.log(`R2 Storage: ${status.r2 ? "✅ Configured" : "⚠️  Not configured (required in production)"}`);
+  console.log(`Pesapal: ${status.pesapal ? "✅ Configured" : "⚠️  Not configured (payments unavailable)"}`);
   console.log("====================");
 }
 
@@ -65,7 +66,7 @@ export function isDegradedMode(): boolean {
  */
 export function getErrorMessage(service: string, operation: string): string {
   const status = getServiceStatus();
-  
+
   const serviceMap: Record<string, keyof typeof status> = {
     upload: "r2",
     payment: "pesapal",
@@ -74,10 +75,10 @@ export function getErrorMessage(service: string, operation: string): string {
   };
 
   const serviceKey = serviceMap[service] || "database";
-  
+
   if (!status[serviceKey]) {
     return `${operation} is currently unavailable. ${service.charAt(0).toUpperCase() + service.slice(1)} service is not configured. Please contact support.`;
   }
-  
+
   return `${operation} failed. Please try again later.`;
 }

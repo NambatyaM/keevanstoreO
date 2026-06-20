@@ -1,5 +1,6 @@
 // ============================================================
 // Cloudflare R2 Upload Module (S3-compatible)
+// Requires R2 credentials to be configured (no fallback mode)
 // ============================================================
 import {
   S3Client,
@@ -8,9 +9,6 @@ import {
 } from "@aws-sdk/client-s3";
 import { getSignedUrl as getPresignedUrl } from "@aws-sdk/s3-request-presigner";
 import { GetObjectCommand } from "@aws-sdk/client-s3";
-import { writeFile, mkdir, unlink } from "fs/promises";
-import path from "path";
-import os from "os";
 import { DOWNLOAD_URL_EXPIRY } from "./constants";
 
 const R2_ACCOUNT_ID = process.env.R2_ACCOUNT_ID;
@@ -26,15 +24,11 @@ const isR2Configured =
 
 let r2Client: S3Client | null = null;
 
-function getR2Client(): S3Client | null {
+function getR2Client(): S3Client {
   if (!isR2Configured) {
-    console.log("R2 not configured - missing credentials:", {
-      hasAccountId: !!R2_ACCOUNT_ID,
-      hasAccessKeyId: !!R2_ACCESS_KEY_ID,
-      hasSecretKey: !!R2_SECRET_ACCESS_KEY,
-      accountId: R2_ACCOUNT_ID ? `${R2_ACCOUNT_ID.substring(0, 8)}...` : "missing",
-    });
-    return null;
+    throw new Error(
+      "R2 storage is not configured. Please set R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, and R2_BUCKET_NAME environment variables."
+    );
   }
   if (r2Client) return r2Client;
 
@@ -59,23 +53,6 @@ export async function uploadFile(
 ): Promise<string> {
   const client = getR2Client();
 
-  if (!client) {
-    console.log("R2 not configured, using mock mode");
-    try {
-      // Mock: save to temporary directory (Vercel filesystem is read-only except /tmp)
-      const uploadDir = path.join(os.tmpdir(), "keevan-uploads", bucket);
-      await mkdir(uploadDir, { recursive: true });
-      const filePath = path.join(uploadDir, key);
-      await writeFile(filePath, body);
-      console.log(`File saved to mock path: ${filePath}`);
-      // Return a URL that can be served by the /uploads/[...path] route
-      return `/uploads/${bucket}/${key}`;
-    } catch (error) {
-      console.error("Mock upload failed:", error);
-      throw new Error("File upload failed: Could not save file in mock mode");
-    }
-  }
-
   try {
     await client.send(
       new PutObjectCommand({
@@ -89,6 +66,9 @@ export async function uploadFile(
     return `https://${bucket}.${R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${key}`;
   } catch (error) {
     console.error("R2 upload error:", error);
+    if (error instanceof Error) {
+      throw new Error(`File upload failed: ${error.message}`);
+    }
     throw new Error("File upload failed: Could not upload to R2 storage");
   }
 }
@@ -98,17 +78,6 @@ export async function deleteFile(
   key: string
 ): Promise<void> {
   const client = getR2Client();
-
-  if (!client) {
-    // Mock: delete from temporary directory
-    const filePath = path.join(os.tmpdir(), "keevan-uploads", bucket, key);
-    try {
-      await unlink(filePath);
-    } catch {
-      // File might not exist
-    }
-    return;
-  }
 
   await client.send(
     new DeleteObjectCommand({
@@ -125,11 +94,6 @@ export async function getSignedUrl(
 ): Promise<string> {
   const client = getR2Client();
 
-  if (!client) {
-    // Mock: return local path
-    return `/uploads/${bucket}/${key}`;
-  }
-
   const command = new GetObjectCommand({
     Bucket: bucket,
     Key: key,
@@ -140,4 +104,29 @@ export async function getSignedUrl(
 
 export function isR2Ready(): boolean {
   return !!isR2Configured;
+}
+
+export function getR2ConfigStatus(): {
+  configured: boolean;
+  missing: string[];
+  details: Record<string, boolean>;
+} {
+  const missing: string[] = [];
+  const details: Record<string, boolean> = {
+    hasAccountId: !!R2_ACCOUNT_ID && R2_ACCOUNT_ID !== "mock",
+    hasAccessKeyId: !!R2_ACCESS_KEY_ID && R2_ACCESS_KEY_ID !== "mock",
+    hasSecretKey: !!R2_SECRET_ACCESS_KEY && R2_SECRET_ACCESS_KEY !== "mock",
+    hasBucketName: !!R2_BUCKET_NAME && R2_BUCKET_NAME !== "mock",
+  };
+
+  if (!details.hasAccountId) missing.push("R2_ACCOUNT_ID");
+  if (!details.hasAccessKeyId) missing.push("R2_ACCESS_KEY_ID");
+  if (!details.hasSecretKey) missing.push("R2_SECRET_ACCESS_KEY");
+  if (!details.hasBucketName) missing.push("R2_BUCKET_NAME");
+
+  return {
+    configured: missing.length === 0,
+    missing,
+    details,
+  };
 }

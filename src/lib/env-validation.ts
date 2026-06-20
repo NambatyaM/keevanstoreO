@@ -6,36 +6,37 @@
 interface EnvVarConfig {
   name: string;
   required: boolean;
+  requiredInProduction: boolean;
   description: string;
 }
 
 const ENV_CONFIG: EnvVarConfig[] = [
   // Database
-  { name: "DATABASE_URL", required: true, description: "Database connection string" },
-  
+  { name: "DATABASE_URL", required: true, requiredInProduction: true, description: "Database connection string" },
+
   // Supabase
-  { name: "NEXT_PUBLIC_SUPABASE_URL", required: true, description: "Supabase project URL" },
-  { name: "NEXT_PUBLIC_SUPABASE_ANON_KEY", required: true, description: "Supabase anonymous key" },
-  { name: "SUPABASE_SERVICE_ROLE_KEY", required: true, description: "Supabase service role key" },
-  
+  { name: "NEXT_PUBLIC_SUPABASE_URL", required: true, requiredInProduction: true, description: "Supabase project URL" },
+  { name: "NEXT_PUBLIC_SUPABASE_ANON_KEY", required: true, requiredInProduction: true, description: "Supabase anonymous key" },
+  { name: "SUPABASE_SERVICE_ROLE_KEY", required: true, requiredInProduction: true, description: "Supabase service role key" },
+
   // Application
-  { name: "NEXT_PUBLIC_APP_URL", required: true, description: "Application base URL" },
-  
-  // R2 Storage (optional - falls back to mock mode)
-  { name: "R2_ACCOUNT_ID", required: false, description: "Cloudflare R2 account ID" },
-  { name: "R2_ACCESS_KEY_ID", required: false, description: "Cloudflare R2 access key" },
-  { name: "R2_SECRET_ACCESS_KEY", required: false, description: "Cloudflare R2 secret key" },
-  { name: "R2_BUCKET_NAME", required: false, description: "Cloudflare R2 bucket name" },
-  
+  { name: "NEXT_PUBLIC_APP_URL", required: true, requiredInProduction: true, description: "Application base URL" },
+
+  // R2 Storage (required in production for file uploads)
+  { name: "R2_ACCOUNT_ID", required: false, requiredInProduction: true, description: "Cloudflare R2 account ID" },
+  { name: "R2_ACCESS_KEY_ID", required: false, requiredInProduction: true, description: "Cloudflare R2 access key" },
+  { name: "R2_SECRET_ACCESS_KEY", required: false, requiredInProduction: true, description: "Cloudflare R2 secret key" },
+  { name: "R2_BUCKET_NAME", required: false, requiredInProduction: true, description: "Cloudflare R2 bucket name" },
+
   // Pesapal (optional - payments will fail without it)
-  { name: "PESAPAL_CONSUMER_KEY", required: false, description: "Pesapal consumer key" },
-  { name: "PESAPAL_CONSUMER_SECRET", required: false, description: "Pesapal consumer secret" },
-  { name: "PESAPAL_API_URL", required: false, description: "Pesapal API URL" },
-  { name: "PESAPAL_IPN_URL", required: false, description: "Pesapal IPN URL" },
-  { name: "PESAPAL_MODE", required: false, description: "Pesapal mode (live/test)" },
-  
+  { name: "PESAPAL_CONSUMER_KEY", required: false, requiredInProduction: false, description: "Pesapal consumer key" },
+  { name: "PESAPAL_CONSUMER_SECRET", required: false, requiredInProduction: false, description: "Pesapal consumer secret" },
+  { name: "PESAPAL_API_URL", required: false, requiredInProduction: false, description: "Pesapal API URL" },
+  { name: "PESAPAL_IPN_URL", required: false, requiredInProduction: false, description: "Pesapal IPN URL" },
+  { name: "PESAPAL_MODE", required: false, requiredInProduction: false, description: "Pesapal mode (live/test)" },
+
   // Admin
-  { name: "ADMIN_WHATSAPP_NUMBER", required: false, description: "Admin WhatsApp number" },
+  { name: "ADMIN_WHATSAPP_NUMBER", required: false, requiredInProduction: false, description: "Admin WhatsApp number" },
 ];
 
 export interface ValidationResult {
@@ -47,14 +48,18 @@ export interface ValidationResult {
 export function validateEnv(): ValidationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
+  const isProduction = process.env.NODE_ENV === "production";
 
   for (const config of ENV_CONFIG) {
     const value = process.env[config.name];
-    
-    if (config.required && !value) {
+    const isRequired = isProduction ? config.requiredInProduction : config.required;
+
+    if (isRequired && !value) {
       errors.push(`Missing required environment variable: ${config.name} (${config.description})`);
-    } else if (!value) {
+    } else if (!value && config.required) {
       warnings.push(`Optional environment variable not set: ${config.name} (${config.description})`);
+    } else if (!value && !config.required) {
+      // Optional variable not set - no warning
     }
   }
 
@@ -84,7 +89,7 @@ export function validateEnv(): ValidationResult {
 
 export function getEnvValidation(): ValidationResult {
   const result = validateEnv();
-  
+
   if (!result.valid && process.env.NODE_ENV === "production") {
     console.error("❌ Environment validation failed:");
     result.errors.forEach((error) => console.error(`  - ${error}`));
@@ -109,7 +114,11 @@ export function isR2Configured(): boolean {
     process.env.R2_ACCOUNT_ID &&
     process.env.R2_ACCESS_KEY_ID &&
     process.env.R2_SECRET_ACCESS_KEY &&
-    process.env.R2_BUCKET_NAME
+    process.env.R2_BUCKET_NAME &&
+    process.env.R2_ACCOUNT_ID !== "mock" &&
+    process.env.R2_ACCESS_KEY_ID !== "mock" &&
+    process.env.R2_SECRET_ACCESS_KEY !== "mock" &&
+    process.env.R2_BUCKET_NAME !== "mock"
   );
 }
 

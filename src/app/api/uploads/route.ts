@@ -1,8 +1,8 @@
 // ============================================================
-// POST /api/uploads — Upload file to R2 or local
+// POST /api/uploads — Upload file to R2
 // ============================================================
 import { NextRequest, NextResponse } from "next/server";
-import { uploadFile } from "@/lib/r2";
+import { uploadFile, getR2ConfigStatus } from "@/lib/r2";
 import { verifyAuth } from "@/lib/auth-helpers";
 import { checkRateLimit, getClientId } from "@/lib/rate-limit";
 
@@ -45,7 +45,21 @@ function sanitizePathSegment(input: string): string {
 export async function POST(request: NextRequest) {
   try {
     console.log("Upload request received");
-    
+
+    // Check R2 configuration first
+    const r2Status = getR2ConfigStatus();
+    if (!r2Status.configured) {
+      console.error("R2 not configured:", r2Status);
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Storage not configured",
+          details: `Missing R2 environment variables: ${r2Status.missing.join(", ")}`,
+        },
+        { status: 503 }
+      );
+    }
+
     // Rate limit: 10 uploads per minute per IP
     const clientId = getClientId(request);
     const rateLimit = checkRateLimit(`uploads:${clientId}`, 10, 60 * 1000);
@@ -66,12 +80,12 @@ export async function POST(request: NextRequest) {
         { status: 401 }
       );
     }
-    
+
     console.log("User authenticated successfully:", authResult.userId);
 
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
-    const bucket = sanitizePathSegment((formData.get("bucket") as string) || "keevan-store");
+    const bucket = sanitizePathSegment((formData.get("bucket") as string) || "keevanstore");
     const rawFolder = (formData.get("folder") as string) || "uploads";
 
     if (!file) {
@@ -123,7 +137,7 @@ export async function POST(request: NextRequest) {
 
     const buffer = Buffer.from(await file.arrayBuffer());
     console.log("Buffer created, size:", buffer.length);
-    
+
     const url = await uploadFile(bucket, key, buffer, file.type);
     console.log("Upload successful, URL:", url);
 
@@ -141,24 +155,43 @@ export async function POST(request: NextRequest) {
     console.error("Error in uploads POST:", error instanceof Error ? error.message : String(error));
     console.error("Error stack:", error instanceof Error ? error.stack : "No stack trace");
     console.error("Error details:", JSON.stringify(error, Object.getOwnPropertyNames(error)));
-    
-    // Provide more specific error message
+
+    // Provide specific error messages based on error type
     let errorMessage = "Upload failed. Please check your connection and try again.";
+    let statusCode = 500;
+
     if (error instanceof Error) {
-      if (error.message.includes("EACCES") || error.message.includes("permission")) {
-        errorMessage = "Upload failed: Permission denied. Please check file permissions.";
-      } else if (error.message.includes("ENOENT")) {
-        errorMessage = "Upload failed: Directory not found. Please check server configuration.";
-      } else if (error.message.includes("ENOSPC")) {
-        errorMessage = "Upload failed: Server storage full. Please contact support.";
-      } else if (error.message.includes("network") || error.message.includes("fetch")) {
-        errorMessage = "Upload failed: Network error. Please check your connection.";
+      const message = error.message.toLowerCase();
+
+      if (message.includes("not configured") || message.includes("r2")) {
+        errorMessage = "Storage not configured. Please contact support.";
+        statusCode = 503;
+      } else if (message.includes("credentials") || message.includes("access key")) {
+        errorMessage = "Storage authentication failed. Please contact support.";
+        statusCode = 503;
+      } else if (message.includes("network") || message.includes("fetch") || message.includes("etimedout")) {
+        errorMessage = "Network error. Please check your connection and try again.";
+      } else if (message.includes("econnrefused")) {
+        errorMessage = "Connection refused. Please check your network settings.";
+      } else if (message.includes("bucket") || message.includes("not found")) {
+        errorMessage = "Storage bucket not found. Please contact support.";
+        statusCode = 503;
+      } else if (message.includes("permission") || message.includes("access denied")) {
+        errorMessage = "Access denied. Please check storage permissions.";
+        statusCode = 403;
+      } else if (message.includes("quota") || message.includes("limit")) {
+        errorMessage = "Storage quota exceeded. Please contact support.";
+        statusCode = 507;
       }
     }
-    
+
     return NextResponse.json(
-      { success: false, error: errorMessage, details: error instanceof Error ? error.message : String(error) },
-      { status: 500 }
+      {
+        success: false,
+        error: errorMessage,
+        details: error instanceof Error ? error.message : String(error),
+      },
+      { status: statusCode }
     );
   }
 }

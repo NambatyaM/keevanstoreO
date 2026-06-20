@@ -6,7 +6,7 @@ import { MetadataRoute } from "next";
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { isUsingMockData, mockCreators, mockProducts } from "@/lib/mock-data";
 
-const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || "https://keevanstore.in";
+const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || "https://www.keevanstore.in";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const entries: MetadataRoute.Sitemap = [];
