@@ -30,33 +30,33 @@ import { sanitizeForJsonLd } from "@/lib/utils";
 const features = [
   {
     icon: Download,
-    title: "Digital Products",
+    title: "Sell Digital Products Uganda",
     description:
-      "Sell e-books, templates, presets, beats, and any digital file. Automatic delivery after purchase. Start selling today.",
+      "Sell e-books, templates, presets, beats, and any digital file. Automatic delivery after purchase. Best platform for selling digital downloads in Uganda.",
     color: "text-blue-600 bg-blue-50 dark:bg-blue-950/30",
     link: "/signup",
   },
   {
     icon: Calendar,
-    title: "Event Tickets",
+    title: "Event Ticketing Uganda",
     description:
-      "Create and sell tickets for events, workshops, and experiences. Built-in QR code check-in system. Easy event management.",
+      "Create and sell tickets for events, workshops, and experiences. Built-in QR code check-in system. Easy event management for Ugandan creators.",
     color: "text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30",
     link: "/signup",
   },
   {
     icon: Heart,
-    title: "Donations",
+    title: "Donation Platform Uganda",
     description:
-      "Accept donations from your supporters with fundraising goals. Build your community with direct fan support. Simple setup.",
+      "Accept donations from your supporters with fundraising goals. Build your community with direct fan support. Simple setup for Ugandan content creators.",
     color: "text-rose-600 bg-rose-50 dark:bg-rose-950/30",
     link: "/signup",
   },
   {
     icon: BarChart3,
-    title: "Analytics",
+    title: "Sales Analytics Dashboard",
     description:
-      "Track sales, views, and revenue in real-time. See which products perform best. Make data-driven decisions.",
+      "Track sales, views, and revenue in real-time. See which products perform best. Make data-driven decisions for your Uganda online store.",
     color: "text-amber-600 bg-amber-50 dark:bg-amber-950/30",
     link: "/signup",
   },
@@ -72,51 +72,51 @@ const stats = [
 const howItWorks = [
   {
     step: "1",
-    title: "Create Your Store",
-    description: "Sign up in under 2 minutes. No coding required. Get your own unique store link instantly.",
+    title: "Create Your Uganda Online Store",
+    description: "Sign up in under 2 minutes. No coding required. Get your own unique store link at keevanstore.in instantly.",
   },
   {
     step: "2",
-    title: "Add Your Products",
-    description: "Upload digital files or create event tickets. Set your own prices starting from UGX 1,000.",
+    title: "Add Your Digital Products",
+    description: "Upload digital files or create event tickets. Set your own prices starting from UGX 1,000. Sell to customers across Uganda.",
   },
   {
     step: "3",
-    title: "Share & Earn",
-    description: "Share your store link anywhere. We handle payments, delivery, and security. You keep 90% of every sale.",
+    title: "Share & Earn with Mobile Money",
+    description: "Share your store link anywhere. We handle MTN MoMo and Airtel Money payments, delivery, and security. You keep 90% of every sale.",
   },
 ];
 
 const faqs = [
   {
-    question: "What is Keevan Store?",
+    question: "What is Keevan Store - Uganda's Best Online Store Platform?",
     answer:
-      "Keevan Store is a creator commerce platform built for Ugandan creators. It lets you set up an online store to sell digital products (e-books, templates, presets, beats), event tickets (workshops, concerts, meetups), and accept donations from supporters. Payments are processed via mobile money (MTN MoMo, Airtel Money), bank transfer, or card through Pesapal.",
+      "Keevan Store is the #1 creator commerce platform built for Ugandan creators. It lets you set up an online store to sell digital products (e-books, templates, presets, beats), event tickets (workshops, concerts, meetups), and accept donations from supporters. Payments are processed via mobile money (MTN MoMo, Airtel Money), bank transfer, or card through Pesapal. Perfect for content creators in Kampala and across Uganda.",
   },
   {
-    question: "How much does it cost to use Keevan Store?",
+    question: "How much does it cost to sell digital products in Uganda?",
     answer:
-      "It is free to create a store and list products. Keevan Store charges a 10% platform fee on each sale, meaning you keep 90% of every transaction. There are no monthly subscriptions or hidden charges.",
+      "It is free to create a store and list products. Keevan Store charges a 10% platform fee on each sale, meaning you keep 90% of every transaction. There are no monthly subscriptions or hidden charges. Best value for Ugandan creators selling online.",
   },
   {
-    question: "What payment methods do my customers use?",
+    question: "What payment methods work in Uganda for online sales?",
     answer:
-      "Your customers can pay using MTN Mobile Money, Airtel Money, bank transfer, or Visa/Mastercard cards. All payments are processed securely through Pesapal, a licensed payment gateway in Uganda.",
+      "Your customers can pay using MTN Mobile Money, Airtel Money, bank transfer, or Visa/Mastercard cards. All payments are processed securely through Pesapal, a licensed payment gateway in Uganda. Mobile money payments make it easy for customers across Uganda to buy from your store.",
   },
   {
-    question: "How do I withdraw my earnings?",
+    question: "How do I withdraw earnings to MTN Mobile Money or Airtel Money?",
     answer:
-      "When your balance reaches at least UGX 50,000, you can request a withdrawal to your mobile money account (MTN Mobile Money or Airtel Money). Withdrawals are processed by the platform admin.",
+      "When your balance reaches at least UGX 50,000, you can request a withdrawal to your mobile money account (MTN Mobile Money or Airtel Money). Withdrawals are processed by the platform admin. Fast and secure withdrawals for Ugandan creators.",
   },
   {
-    question: "How are digital products delivered to buyers?",
+    question: "How are digital products delivered to buyers in Uganda?",
     answer:
-      "After a successful payment, the buyer receives a download link via email. The link is valid for 24 hours and uses a secure, signed URL. The buyer can download the file directly without needing to create an account.",
+      "After a successful payment, the buyer receives a download link via email. The link is valid for 24 hours and uses a secure, signed URL. The buyer can download the file directly without needing to create an account. Automatic delivery for all digital products sold in Uganda.",
   },
   {
-    question: "How do event tickets work?",
+    question: "How do event tickets work for Uganda events?",
     answer:
-      "When a buyer purchases an event ticket, they receive a confirmation email with a unique QR code. At the event, you use the built-in check-in page to scan or search for the attendee by name or email.",
+      "When a buyer purchases an event ticket, they receive a confirmation email with a unique QR code. At the event, you use the built-in check-in page to scan or search for the attendee by name or email. Perfect for workshops, concerts, and meetups across Uganda.",
   },
 ];
 
@@ -204,14 +204,13 @@ export default function LandingPage() {
               Built for Ugandan Creators
             </div>
             <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold text-foreground tracking-tight">
-              Create Your Online Store{" "}
-              <span className="text-emerald-600">in Minutes</span>
+              Best Online Store Platform for{" "}
+              <span className="text-emerald-600">Ugandan Creators</span>
             </h1>
-            {/* GEO: Clear, factual, self-contained description */}
+            {/* GEO: Clear, factual, self-contained description with keywords */}
             <p className="mt-4 sm:mt-6 text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto">
-              Keevan Store lets creators in Uganda sell digital products, event tickets,
-              and accept donations with mobile money payments (MTN MoMo, Airtel Money).
-              No coding needed. Start earning today.
+              Sell digital products, event tickets, and accept donations with MTN Mobile Money and Airtel Money payments.
+              The #1 e-commerce platform in Uganda for creators. Free to start. Keep 90% of sales.
             </p>
             <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
               <Button
@@ -257,10 +256,10 @@ export default function LandingPage() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-12">
             <h2 className="text-3xl sm:text-4xl font-bold text-foreground">
-              Everything You Need to Sell Online
+              Complete E-commerce Platform for Uganda
             </h2>
             <p className="mt-3 text-muted-foreground text-lg">
-              From digital downloads to event tickets — all in one platform built for Uganda
+              Sell digital downloads, event tickets, and accept donations. The best online store solution for Ugandan creators with MTN MoMo and Airtel Money payments.
             </p>
           </div>
 
@@ -301,10 +300,10 @@ export default function LandingPage() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-12">
             <h2 className="text-3xl sm:text-4xl font-bold text-foreground">
-              Start Earning in 3 Steps
+              How to Start Selling Online in Uganda
             </h2>
             <p className="mt-3 text-muted-foreground text-lg">
-              No technical skills needed — just create and sell
+              No technical skills needed — just create your store, add products, and start earning with mobile money payments
             </p>
           </div>
 
@@ -338,34 +337,34 @@ export default function LandingPage() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-12">
             <h2 className="text-3xl sm:text-4xl font-bold text-foreground">
-              Why Creators Love Keevan Store
+              Why Ugandan Creators Choose Keevan Store
             </h2>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 max-w-4xl mx-auto">
             <Card>
               <CardContent className="p-6 text-center">
                 <Smartphone className="h-10 w-10 text-emerald-600 mx-auto mb-3" />
-                <h3 className="font-semibold text-foreground">Mobile First</h3>
+                <h3 className="font-semibold text-foreground">Mobile Money Payments</h3>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  Designed for mobile users. Your customers can buy from any device using mobile money payments.
+                  MTN MoMo and Airtel Money payments. Your customers can buy from any device using mobile money across Uganda.
                 </p>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="p-6 text-center">
                 <Shield className="h-10 w-10 text-emerald-600 mx-auto mb-3" />
-                <h3 className="font-semibold text-foreground">Secure Payments</h3>
+                <h3 className="font-semibold text-foreground">Secure Payment Gateway</h3>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  Mobile money, bank transfer, and card payments processed securely via Pesapal. Licensed and regulated.
+                  Mobile money, bank transfer, and card payments processed securely via Pesapal. Licensed and regulated in Uganda.
                 </p>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="p-6 text-center">
                 <Store className="h-10 w-10 text-emerald-600 mx-auto mb-3" />
-                <h3 className="font-semibold text-foreground">Your Brand, Your Link</h3>
+                <h3 className="font-semibold text-foreground">Your Own Brand</h3>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  Custom store URL at keevanstore.in/store/your-name. Your own banner, profile, and branding. No marketplace.
+                  Custom store URL at keevanstore.in/store/your-name. Your own banner, profile, and branding. No marketplace fees.
                 </p>
               </CardContent>
             </Card>
@@ -378,10 +377,10 @@ export default function LandingPage() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-12">
             <h2 className="text-3xl sm:text-4xl font-bold text-foreground">
-              Frequently Asked Questions
+              Frequently Asked Questions About Selling Online in Uganda
             </h2>
             <p className="mt-3 text-muted-foreground text-lg">
-              Everything you need to know about selling on Keevan Store
+              Everything you need to know about Keevan Store, digital products, event tickets, and mobile money payments in Uganda
             </p>
           </div>
 
@@ -440,11 +439,11 @@ export default function LandingPage() {
             className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 p-8 sm:p-12 md:p-16 text-center"
           >
             <h2 className="text-3xl sm:text-4xl font-bold text-white">
-              Ready to Start Selling?
+              Start Your Uganda Online Store Today
             </h2>
             <p className="mt-4 text-emerald-100 text-lg max-w-2xl mx-auto">
-              Join Ugandan creators already earning with Keevan Store.
-              Set up your store in minutes — it is free to get started. You keep 90% of every sale.
+              Join hundreds of Ugandan creators already earning with Keevan Store.
+              Set up your store in minutes — it is free to get started. Accept MTN MoMo and Airtel Money payments. You keep 90% of every sale.
             </p>
             <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
               <Button
@@ -453,7 +452,7 @@ export default function LandingPage() {
                 asChild
               >
                 <Link href="/signup">
-                  Create Your Store
+                  Create Your Free Store
                   <ArrowRight className="h-4 w-4 ml-2" />
                 </Link>
               </Button>
@@ -463,7 +462,7 @@ export default function LandingPage() {
                 className="border-white/30 text-white hover:bg-white/10 w-full sm:w-auto"
                 asChild
               >
-                <Link href="/store/sarah-creates">See a Live Demo</Link>
+                <Link href="/store/sarah-creates">See a Live Uganda Store</Link>
               </Button>
             </div>
           </motion.div>
