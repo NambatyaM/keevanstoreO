@@ -63,7 +63,9 @@ export async function uploadFile(
       })
     );
     console.log(`File uploaded to R2: ${bucket}/${key}`);
-    return `https://${bucket}.${R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${key}`;
+    // FIXED: Return public URL format for R2
+    // Use the standard R2 public URL format that works with public buckets
+    return `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com/${bucket}/${key}`;
   } catch (error) {
     console.error("R2 upload error:", error);
     if (error instanceof Error) {

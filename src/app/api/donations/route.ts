@@ -137,12 +137,40 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Create donation record
+      // FIXED: Mock mode should also create pending order and simulate payment flow
+      const platformFee = Math.round((amount * PLATFORM_FEE_PERCENT) / 100);
+      const creatorEarning = amount - platformFee;
+      const orderId = `order-don-${Date.now()}`;
+      const trackingId = `mock-don-tracking-${Date.now()}`;
+
+      // Create pending order first
+      const donationOrder: Order = {
+        id: orderId,
+        creatorId,
+        productId: null,
+        buyerEmail: anonymous ? "" : donorEmail || "",
+        buyerName: anonymous ? "Anonymous" : donorName || "Anonymous",
+        amount,
+        platformFee,
+        creatorEarning,
+        currency: "UGX",
+        status: "pending" as OrderStatus,
+        paymentMethod: "mtn_momo" as PaymentMethod,
+        pesapalOrderTrackingId: trackingId,
+        pesapalTransactionId: null,
+        downloadToken: null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      mockOrders.push(donationOrder);
+
+      // Create donation record linked to order
       const donationId = `don-${Date.now()}`;
       const donation: Donation = {
         id: donationId,
         creatorId,
-        orderId: null,
+        orderId: orderId,
         donorEmail: anonymous ? "" : donorEmail || "",
         donorName: anonymous ? "Anonymous" : donorName || "Anonymous",
         amount,
@@ -153,43 +181,37 @@ export async function POST(request: NextRequest) {
 
       mockDonations.push(donation);
 
-      // Also create an order for the donation
-      const platformFee = Math.round((amount * PLATFORM_FEE_PERCENT) / 100);
-      const creatorEarning = amount - platformFee;
+      // Simulate payment completion after delay
+      setTimeout(() => {
+        const orderIndex = mockOrders.findIndex((o) => o.id === orderId);
+        if (orderIndex >= 0) {
+          mockOrders[orderIndex] = {
+            ...mockOrders[orderIndex],
+            status: "completed" as OrderStatus,
+            pesapalTransactionId: `mock-don-txn-${Date.now()}`,
+            updatedAt: new Date().toISOString(),
+          };
 
-      const donationOrder: Order = {
-        id: `order-don-${Date.now()}`,
-        creatorId,
-        productId: `donation-${donationId}`,
-        buyerEmail: anonymous ? "" : donorEmail || "",
-        buyerName: anonymous ? "Anonymous" : donorName || "Anonymous",
-        amount,
-        platformFee,
-        creatorEarning,
-        currency: "UGX",
-        status: "completed" as OrderStatus,
-        paymentMethod: "mtn_momo" as PaymentMethod,
-        pesapalOrderTrackingId: `mock-don-tracking-${Date.now()}`,
-        pesapalTransactionId: `mock-don-txn-${Date.now()}`,
-        downloadToken: null,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
+          // Update creator balance and donation current
+          const creatorIndex = mockCreators.findIndex((c) => c.id === creatorId);
+          if (creatorIndex >= 0) {
+            mockCreators[creatorIndex].balance += creatorEarning;
+            mockCreators[creatorIndex].totalEarnings += creatorEarning;
+            mockCreators[creatorIndex].donationCurrent += amount;
+            mockCreators[creatorIndex].totalSales += 1;
+          }
+        }
+      }, 2000);
 
-      mockOrders.push(donationOrder);
-
-      // Update creator balance and donation current
-      const creatorIndex = mockCreators.findIndex((c) => c.id === creatorId);
-      if (creatorIndex >= 0) {
-        mockCreators[creatorIndex].balance += creatorEarning;
-        mockCreators[creatorIndex].totalEarnings += creatorEarning;
-        mockCreators[creatorIndex].donationCurrent += amount;
-        mockCreators[creatorIndex].totalSales += 1;
-      }
-
+      // FIXED: Return payment URL for redirect
       return NextResponse.json({
         success: true,
-        data: donation,
+        data: {
+          donation,
+          orderId,
+          paymentUrl: `/payment/success?orderId=${orderId}&trackingId=${trackingId}`,
+          status: "pending",
+        },
       });
     }
 
@@ -226,10 +248,19 @@ export async function POST(request: NextRequest) {
     const platformFee = Math.round((amount * PLATFORM_FEE_PERCENT) / 100);
     const creatorEarning = amount - platformFee;
 
-    // Create order for the donation first
+    // FIXED: Donations must go through Pesapal payment flow like regular purchases
+    // Create pending order first (not completed)
+    const orderId = crypto.randomUUID();
+    const ipnUrl = process.env.PESAPAL_IPN_URL || `${process.env.NEXT_PUBLIC_APP_URL}/api/pesapal/ipn`;
+    
+    // Import Pesapal functions
+    const { submitOrder, registerIPN } = await import("@/lib/pesapal");
+    const ipnId = await registerIPN(ipnUrl);
+
     const { data: orderRow, error: orderError } = await serviceClient
       .from("orders")
       .insert({
+        id: orderId,
         creator_id: creatorId,
         product_id: null, // Donations don't have a product
         buyer_email: anonymous ? "" : (donorEmail || ""),
@@ -238,7 +269,7 @@ export async function POST(request: NextRequest) {
         platform_fee: platformFee,
         creator_earning: creatorEarning,
         currency: "UGX",
-        status: "completed",
+        status: "pending", // FIXED: Start as pending, not completed
         payment_method: "mtn_momo",
       })
       .select()
@@ -252,7 +283,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create donation record
+    // Create donation record linked to the order
     const { data: donationRow, error: donationError } = await serviceClient
       .from("donations")
       .insert({
@@ -275,48 +306,49 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Atomically update creator balance, total_earnings, donation_current, and total_sales
-    // Using atomic SQL update to prevent race conditions with concurrent donations
-    const { error: updateError } = await serviceClient.rpc("process_donation", {
-      p_creator_id: creatorId,
-      p_amount: amount,
-      p_creator_earning: creatorEarning,
+    // FIXED: Submit to Pesapal for payment processing
+    const pesapalResponse = await submitOrder({
+      id: orderId,
+      currency: "UGX",
+      amount,
+      description: `Donation to ${creatorId}`,
+      callback_url: `${process.env.NEXT_PUBLIC_APP_URL || ""}/api/pesapal/callback`,
+      notification_id: ipnId || orderId,
+      billing_address: {
+        email_address: anonymous ? "" : (donorEmail || ""),
+        phone_number: "",
+        country_code: "UG",
+        first_name: anonymous ? "Anonymous" : (donorName || "").split(" ")[0] || "Anonymous",
+        last_name: anonymous ? "" : (donorName || "").split(" ").slice(1).join(" ") || "",
+        line_1: "",
+        city: "Kampala",
+        state: "Central",
+        postal_code: "00000",
+        zip_code: "00000",
+      },
     });
 
-    if (updateError) {
-      // Fallback: if RPC doesn't exist yet, try the atomic increment_creator_earnings RPC
-      console.error("RPC process_donation failed, trying fallback:", updateError.message);
-      const { error: fallbackError } = await serviceClient.rpc("increment_creator_earnings", {
-        p_creator_id: creatorId,
-        p_amount: creatorEarning,
-      });
-      if (fallbackError) {
-        console.error("All RPC fallbacks failed for donation balance update:", fallbackError.message);
-        // Last resort: read-then-write (not atomic but preserves existing balance)
-        const { data: currentCreator } = await serviceClient
-          .from("creators")
-          .select("balance, total_earnings, total_sales, donation_current")
-          .eq("id", creatorId)
-          .single();
-        if (currentCreator) {
-          await serviceClient
-            .from("creators")
-            .update({
-              balance: Number(currentCreator.balance) + creatorEarning,
-              total_earnings: Number(currentCreator.total_earnings) + creatorEarning,
-              total_sales: Number(currentCreator.total_sales) + 1,
-              donation_current: Number(currentCreator.donation_current) + amount,
-            })
-            .eq("id", creatorId);
-        }
-      }
+    // Update order with Pesapal tracking ID
+    if (pesapalResponse?.order_tracking_id) {
+      await serviceClient
+        .from("orders")
+        .update({
+          pesapal_order_tracking_id: pesapalResponse.order_tracking_id,
+        })
+        .eq("id", orderId);
     }
 
     const donation = mapDonationFromDb(donationRow);
 
+    // FIXED: Return Pesapal redirect URL instead of marking as completed
     return NextResponse.json({
       success: true,
-      data: donation,
+      data: {
+        donation,
+        orderId,
+        paymentUrl: pesapalResponse?.redirect_url || "",
+        status: "pending",
+      },
     });
   } catch (error) {
     console.error("Error in donations POST:", error instanceof Error ? error.message : String(error));

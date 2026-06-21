@@ -118,32 +118,98 @@ export async function POST(request: NextRequest) {
     }
 
     if (transactionStatus.payment_status === "COMPLETED") {
-      // Use the atomic process_completed_payment RPC function
-      // This handles order status, creator balance, product sales count, and event tickets atomically
-      // preventing TOCTOU race conditions from concurrent IPN callbacks
-      const { error: rpcError } = await serviceClient.rpc("process_completed_payment", {
-        p_order_id: orderRow.id,
-        p_pesapal_transaction_id: transactionStatus.confirmation_code || "",
-      });
+      // FIXED: Handle donations separately - if product_id is null, this is a donation
+      if (!orderRow.product_id) {
+        // This is a donation - use the process_donation RPC to update donation_current
+        const { error: donationRpcError } = await serviceClient.rpc("process_donation", {
+          p_creator_id: orderRow.creator_id,
+          p_amount: orderRow.amount,
+          p_creator_earning: orderRow.creator_earning,
+        });
 
-      if (rpcError) {
-        console.error("process_completed_payment RPC failed:", rpcError.message);
-        // Only swallow idempotency errors (order already completed)
-        // For all other errors, return 500 to trigger Pesapal retry
-        if (!rpcError.message.includes("already completed") && !rpcError.message.includes("already processed")) {
-          return NextResponse.json(
-            { success: false, error: "Payment processing failed, will retry" },
-            { status: 500 }
-          );
+        if (donationRpcError) {
+          console.error("process_donation RPC failed:", donationRpcError.message);
+          // Fallback: manual update
+          await serviceClient
+            .from("orders")
+            .update({
+              status: "completed",
+              pesapal_transaction_id: transactionStatus.confirmation_code || "",
+            })
+            .eq("id", orderRow.id);
+        } else {
+          // Update order status after successful donation processing
+          await serviceClient
+            .from("orders")
+            .update({
+              status: "completed",
+              pesapal_transaction_id: transactionStatus.confirmation_code || "",
+            })
+            .eq("id", orderRow.id);
+        }
+      } else {
+        // This is a product purchase - use the atomic process_completed_payment RPC function
+        // This handles order status, creator balance, product sales count, and event tickets atomically
+        // preventing TOCTOU race conditions from concurrent IPN callbacks
+        const { error: rpcError } = await serviceClient.rpc("process_completed_payment", {
+          p_order_id: orderRow.id,
+          p_pesapal_transaction_id: transactionStatus.confirmation_code || "",
+        });
+
+        if (rpcError) {
+          console.error("process_completed_payment RPC failed:", rpcError.message);
+          // Only swallow idempotency errors (order already completed)
+          // For all other errors, return 500 to trigger Pesapal retry
+          if (!rpcError.message.includes("already completed") && !rpcError.message.includes("already processed")) {
+            return NextResponse.json(
+              { success: false, error: "Payment processing failed, will retry" },
+              { status: 500 }
+            );
+          }
         }
       }
 
       const productId = orderRow.product_id;
 
-      // For digital products: create download session if not already created
-      // Check the download_sessions table, not the download_token field on the order
-      // (download_token is pre-assigned at order creation, but the session is only created after payment)
+      // FIXED: Handle donations that are part of product purchases
+      // Check if there's a donation record linked to this order
       if (productId) {
+        const { data: donationRecord } = await serviceClient
+          .from("donations")
+          .select("amount")
+          .eq("order_id", orderRow.id)
+          .maybeSingle();
+
+        if (donationRecord) {
+          // Update donation_current for the creator
+          // FIXED: Use process_donation RPC which already handles donation_current
+          const { error: donationUpdateError } = await serviceClient.rpc("process_donation", {
+            p_creator_id: orderRow.creator_id,
+            p_amount: donationRecord.amount,
+            p_creator_earning: donationRecord.amount, // For donations, amount = creator_earning (no platform fee on donation portion)
+          });
+          if (donationUpdateError) {
+            console.error("Failed to increment donation_current:", donationUpdateError.message);
+            // Fallback: manual update
+            const { data: currentCreator } = await serviceClient
+              .from("creators")
+              .select("donation_current")
+              .eq("id", orderRow.creator_id)
+              .single();
+            if (currentCreator) {
+              await serviceClient
+                .from("creators")
+                .update({
+                  donation_current: (currentCreator.donation_current || 0) + donationRecord.amount,
+                })
+                .eq("id", orderRow.creator_id);
+            }
+          }
+        }
+
+        // For digital products: create download session if not already created
+        // Check the download_sessions table, not the download_token field on the order
+        // (download_token is pre-assigned at order creation, but the session is only created after payment)
         const { data: productTypeData } = await serviceClient
           .from("products")
           .select("type")

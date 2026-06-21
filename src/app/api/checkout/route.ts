@@ -9,6 +9,7 @@ import {
   mockOrders,
   mockProducts,
   mockCreators,
+  mockDonations,
   createMockDownloadSession,
 } from "@/lib/mock-data";
 import { PLATFORM_FEE_PERCENT } from "@/lib/constants";
@@ -46,7 +47,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { productId, buyerEmail, buyerName, paymentMethod } = parsed.data;
+    const { productId, buyerEmail, buyerName, paymentMethod, donationAmount } = parsed.data;
 
     if (isUsingMockData()) {
       // Get product details
@@ -98,10 +99,12 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      // Calculate fees
-      const amount = product.price;
-      const platformFee = Math.round((amount * PLATFORM_FEE_PERCENT) / 100);
-      const creatorEarning = amount - platformFee;
+      // Calculate fees including donation amount
+      const productAmount = product.price;
+      const totalDonationAmount = donationAmount || 0;
+      const totalAmount = productAmount + totalDonationAmount;
+      const platformFee = Math.round((totalAmount * PLATFORM_FEE_PERCENT) / 100);
+      const creatorEarning = totalAmount - platformFee;
 
       // Create pending order
       const orderId = crypto.randomUUID();
@@ -113,7 +116,7 @@ export async function POST(request: NextRequest) {
         productId,
         buyerEmail,
         buyerName,
-        amount,
+        amount: totalAmount,
         platformFee,
         creatorEarning,
         currency: product.currency,
@@ -157,6 +160,26 @@ export async function POST(request: NextRequest) {
             mockCreators[creatorIndex].balance += creatorEarning;
             mockCreators[creatorIndex].totalEarnings += creatorEarning;
             mockCreators[creatorIndex].totalSales += 1;
+            // FIXED: Add donation to donation_current if donation amount > 0
+            if (totalDonationAmount > 0) {
+              mockCreators[creatorIndex].donationCurrent += totalDonationAmount;
+            }
+          }
+
+          // Create donation record if donation amount > 0
+          if (totalDonationAmount > 0) {
+            const donation = {
+              id: `don-${Date.now()}`,
+              creatorId: product.creatorId,
+              orderId: orderId,
+              donorEmail: buyerEmail,
+              donorName: buyerName,
+              amount: totalDonationAmount,
+              message: "Donation with purchase",
+              anonymous: false,
+              createdAt: new Date().toISOString(),
+            };
+            mockDonations.push(donation);
           }
 
           // Create download session for digital products
@@ -222,10 +245,12 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Calculate fees
-    const amount = product.price;
-    const platformFee = Math.round((amount * PLATFORM_FEE_PERCENT) / 100);
-    const creatorEarning = amount - platformFee;
+    // Calculate fees including donation amount
+    const productAmount = product.price;
+    const totalDonationAmount = donationAmount || 0;
+    const totalAmount = productAmount + totalDonationAmount;
+    const platformFee = Math.round((totalAmount * PLATFORM_FEE_PERCENT) / 100);
+    const creatorEarning = totalAmount - platformFee;
 
     // Create order in database using service role client (buyer is not authenticated)
     const serviceClient = createServiceRoleClient();
@@ -277,7 +302,7 @@ export async function POST(request: NextRequest) {
         creator_id: product.creatorId,
         buyer_email: buyerEmail,
         buyer_name: buyerName,
-        amount,
+        amount: totalAmount,
         platform_fee: platformFee,
         creator_earning: creatorEarning,
         currency: product.currency,
@@ -302,8 +327,8 @@ export async function POST(request: NextRequest) {
     const pesapalResponse = await submitOrder({
       id: orderId,
       currency: product.currency,
-      amount,
-      description: `Purchase: ${product.title}`,
+      amount: totalAmount,
+      description: `Purchase: ${product.title}${totalDonationAmount > 0 ? ` + UGX ${totalDonationAmount} donation` : ""}`,
       callback_url: `${process.env.NEXT_PUBLIC_APP_URL || ""}/api/pesapal/callback`,
       notification_id: ipnId || orderId,
       billing_address: {
@@ -328,6 +353,26 @@ export async function POST(request: NextRequest) {
           pesapal_order_tracking_id: pesapalResponse.order_tracking_id,
         })
         .eq("id", orderId);
+    }
+
+    // FIXED: Create donation record if donation amount > 0
+    if (totalDonationAmount > 0) {
+      const { error: donationError } = await serviceClient
+        .from("donations")
+        .insert({
+          creator_id: product.creatorId,
+          order_id: orderId,
+          donor_email: buyerEmail,
+          donor_name: buyerName,
+          amount: totalDonationAmount,
+          message: "Donation with purchase",
+          is_anonymous: false,
+        });
+
+      if (donationError) {
+        console.error("Error creating donation with purchase:", donationError);
+        // Don't fail the checkout, just log the error
+      }
     }
 
     return NextResponse.json({

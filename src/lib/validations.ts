@@ -74,6 +74,7 @@ export const checkoutSchema = z.object({
   paymentMethod: z.enum(["mtn_momo", "airtel_money", "bank_transfer", "card"] as const, {
     error: "Invalid payment method",
   }),
+  donationAmount: z.number().int().min(0).optional().default(0),
 });
 
 // ── Withdrawals ─────────────────────────────────────────────

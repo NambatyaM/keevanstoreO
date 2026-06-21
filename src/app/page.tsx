@@ -118,6 +118,31 @@ const faqs = [
     answer:
       "When a buyer purchases an event ticket, they receive a confirmation email with a unique QR code. At the event, you use the built-in check-in page to scan or search for the attendee by name or email. Perfect for workshops, concerts, and meetups across Uganda.",
   },
+  {
+    question: "Is Keevan Store better than other e-commerce platforms in Uganda?",
+    answer:
+      "Keevan Store is specifically designed for Ugandan creators with MTN MoMo and Airtel Money integration, 90% revenue share (you keep more), no monthly fees, and automatic digital product delivery. Unlike international platforms that don't support local mobile money, Keevan Store is built for Uganda's payment ecosystem.",
+  },
+  {
+    question: "Can I use Keevan Store if I'm not in Uganda?",
+    answer:
+      "Keevan Store is optimized for Ugandan creators and customers. While you can create an account from anywhere, the payment system is designed for MTN Mobile Money and Airtel Money, which are primarily used in Uganda. For creators outside Uganda targeting Ugandan customers, the platform works well.",
+  },
+  {
+    question: "What types of digital products can I sell on Keevan Store?",
+    answer:
+      "You can sell any digital file including e-books, PDFs, templates, presets (Lightroom, Photoshop, video editing), beats and music, software, courses, fonts, stock photos, design assets, and more. File size limit is 4MB for general files and 2MB for images.",
+  },
+  {
+    question: "How long does it take to set up a store on Keevan Store?",
+    answer:
+      "You can set up your store in under 2 minutes. Simply sign up, choose your username, and you'll get your unique store URL at keevanstore.in/store/your-name. No coding or technical skills required. Start adding products immediately after signup.",
+  },
+  {
+    question: "Is my data and customer information secure on Keevan Store?",
+    answer:
+      "Yes, Keevan Store uses industry-standard security measures. Payments are processed through Pesapal, a licensed payment gateway in Uganda. Files are stored securely on Cloudflare R2. We do not store payment card information. Your customer data is protected and never shared with third parties.",
+  },
 ];
 
 export default function LandingPage() {
@@ -149,6 +174,60 @@ export default function LandingPage() {
     ],
   };
 
+  // HowTo structured data for AI search
+  const howToSchema = {
+    "@context": "https://schema.org",
+    "@type": "HowTo",
+    name: "How to Start Selling Online in Uganda with Keevan Store",
+    description: "Learn how to create an online store in Uganda, sell digital products, event tickets, and accept mobile money payments with Keevan Store.",
+    step: [
+      {
+        "@type": "HowToStep",
+        name: "Create Your Uganda Online Store",
+        text: "Sign up in under 2 minutes. No coding required. Get your own unique store link at keevanstore.in instantly.",
+        image: "https://www.keevanstore.in/logo-new.png",
+      },
+      {
+        "@type": "HowToStep",
+        name: "Add Your Digital Products",
+        text: "Upload digital files or create event tickets. Set your own prices starting from UGX 1,000. Sell to customers across Uganda.",
+      },
+      {
+        "@type": "HowToStep",
+        name: "Share & Earn with Mobile Money",
+        text: "Share your store link anywhere. We handle MTN MoMo and Airtel Money payments, delivery, and security. You keep 90% of every sale.",
+      },
+    ],
+  };
+
+  // Pricing schema for AI search
+  const pricingSchema = {
+    "@context": "https://schema.org",
+    "@type": "Offer",
+    name: "Keevan Store Platform Fee",
+    description: "Keevan Store charges a 10% platform fee on each sale. Creators keep 90% of every transaction. No monthly subscriptions or hidden charges.",
+    price: "0",
+    priceCurrency: "UGX",
+    category: "Platform Fee",
+    availability: "https://schema.org/InStock",
+    seller: {
+      "@type": "Organization",
+      name: "Keevan Store",
+      url: "https://www.keevanstore.in",
+    },
+    priceSpecification: {
+      "@type": "UnitPriceSpecification",
+      price: "10",
+      priceCurrency: "UGX",
+      referenceQuantity: {
+        "@type": "QuantitativeValue",
+        value: "1",
+        unitCode: "PCT",
+      },
+      valueAddedTaxIncluded: true,
+    },
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-background">
       {/* JSON-LD Structured Data */}
@@ -159,6 +238,14 @@ export default function LandingPage() {
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: sanitizeForJsonLd(JSON.stringify(breadcrumbSchema)) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: sanitizeForJsonLd(JSON.stringify(howToSchema)) }}
+      />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: sanitizeForJsonLd(JSON.stringify(pricingSchema)) }}
       />
 
       {/* Header */}
