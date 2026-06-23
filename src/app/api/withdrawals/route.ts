@@ -213,7 +213,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Use service role client for atomic balance deduction and withdrawal creation
+    // Use service role client for atomic withdrawal request creation
+    // FIXED: process_withdrawal_request now creates pending record WITHOUT deducting balance
+    // Balance is only deducted when admin approves the withdrawal
     const serviceClient = createServiceRoleClient();
     if (!serviceClient) {
       return NextResponse.json(
@@ -222,8 +224,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Atomic transaction: deduct balance and create withdrawal record
-    const { error: txError } = await serviceClient.rpc("process_withdrawal_request", {
+    // Atomic transaction: create withdrawal record using ledger-based RPC
+    // This locks funds by moving them from available to pending balance
+    const { error: txError } = await serviceClient.rpc("process_withdrawal_request_ledger", {
       p_creator_id: creatorId,
       p_amount: amount,
       p_phone_number: phoneNumber,

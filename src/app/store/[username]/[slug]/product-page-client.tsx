@@ -11,8 +11,6 @@ import {
   ArrowLeft,
   ShoppingCart,
   CheckCircle2,
-  CreditCard,
-  Smartphone,
   ChevronRight,
   Loader2,
 } from "lucide-react";
@@ -20,26 +18,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { CurrencyDisplay, formatCurrency } from "@/components/shared/currency-display";
 import { CopyButton } from "@/components/shared/copy-button";
 import { SiteFooter } from "@/components/shared/site-footer";
 import { FloatingWhatsAppButton } from "@/components/shared/whatsapp-support";
 import { PRODUCT_TYPE_LABELS } from "@/lib/constants";
-import type { Creator, Product, PaymentMethod } from "@/types";
+import type { Creator, Product } from "@/types";
 import { format } from "date-fns";
 import { toast } from "sonner";
 
@@ -51,12 +35,10 @@ interface ProductPageClientProps {
 }
 
 export function ProductPageClient({ creator, product, username, slug }: ProductPageClientProps) {
-  const [showCheckout, setShowCheckout] = useState(false);
   const [buyerEmail, setBuyerEmail] = useState("");
   const [buyerName, setBuyerName] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | "">("");
   const [isProcessing, setIsProcessing] = useState(false);
-  const [paymentComplete, setPaymentComplete] = useState(false);
+  const [donationAmount, setDonationAmount] = useState("");
 
   // Track page view
   useEffect(() => {
@@ -74,8 +56,8 @@ export function ProductPageClient({ creator, product, username, slug }: ProductP
   }, [creator?.id]);
 
   const handlePurchase = async () => {
-    if (!buyerEmail || !buyerName || !paymentMethod) {
-      toast.error("Please fill in all fields");
+    if (!buyerEmail || !buyerName) {
+      toast.error("Please fill in your name and email");
       return;
     }
 
@@ -89,18 +71,15 @@ export function ProductPageClient({ creator, product, username, slug }: ProductP
           productId: product.id,
           buyerEmail,
           buyerName,
-          paymentMethod,
+          paymentMethod: "card", // Default to card, Pesapal will show all options
+          donationAmount: donationAmount ? parseInt(donationAmount) : 0,
         }),
       });
 
       const data = await response.json();
 
       if (data.success && data.data?.paymentUrl) {
-        // Redirect to Pesapal payment page
         window.location.href = data.data.paymentUrl;
-      } else if (data.success && data.data?.redirectUrl) {
-        // Fallback for mock mode or alternate response format
-        window.location.href = data.data.redirectUrl;
       } else {
         toast.error(data.error || "Payment failed. Please try again.");
       }
@@ -247,7 +226,7 @@ export function ProductPageClient({ creator, product, username, slug }: ProductP
             {/* Buy Button */}
             <Button
               className="w-full bg-emerald-600 hover:bg-emerald-700 text-white h-12 text-base"
-              onClick={() => setShowCheckout(true)}
+              onClick={() => document.getElementById('checkout-section')?.scrollIntoView({ behavior: 'smooth' })}
             >
               {isEvent ? (
                 <>
@@ -269,7 +248,7 @@ export function ProductPageClient({ creator, product, username, slug }: ProductP
                 Secure Payment
               </span>
               <span className="flex items-center gap-1">
-                <Smartphone className="h-3 w-3 text-emerald-500" />
+                <CheckCircle2 className="h-3 w-3 text-emerald-500" />
                 Mobile Money
               </span>
             </div>
@@ -280,141 +259,99 @@ export function ProductPageClient({ creator, product, username, slug }: ProductP
       <SiteFooter variant="store" creatorName={creator.displayName} username={username} />
       <FloatingWhatsAppButton />
 
-      {/* Checkout Dialog */}
-      <Dialog open={showCheckout} onOpenChange={setShowCheckout}>
-        <DialogContent className="sm:max-w-md">
-          {paymentComplete ? (
-            <div className="py-6 text-center space-y-4">
-              <CheckCircle2 className="h-16 w-16 text-emerald-500 mx-auto" />
-              <h3 className="text-xl font-bold">Payment Successful!</h3>
-              <p className="text-sm text-muted-foreground">
+      {/* Inline Checkout Section */}
+      <div id="checkout-section" className="max-w-4xl mx-auto w-full px-4 sm:px-6 py-6">
+        <div className="rounded-xl border bg-card p-6 space-y-6">
+          <h2 className="text-xl font-bold">Complete Your Purchase</h2>
+          
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="buyerName">Full Name</Label>
+              <Input
+                id="buyerName"
+                value={buyerName}
+                onChange={(e) => setBuyerName(e.target.value)}
+                placeholder="Your full name"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="buyerEmail">Email Address</Label>
+              <Input
+                id="buyerEmail"
+                type="email"
+                value={buyerEmail}
+                onChange={(e) => setBuyerEmail(e.target.value)}
+                placeholder="your@email.com"
+              />
+              <p className="text-xs text-muted-foreground">
                 {isEvent
-                  ? "Your ticket has been confirmed. Check your email for the QR code and event details."
-                  : "Your download link has been sent to your email. The link is valid for 24 hours."}
+                  ? "Ticket and QR code will be sent to this email"
+                  : "Download link will be sent to this email (valid for 24 hours)"}
               </p>
+            </div>
+
+            {/* Donation Option */}
+            {creator.donationsEnabled && (
               <div className="space-y-2">
-                <Button
-                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
-                  asChild
-                >
-                  <Link href={`/store/${username}`}>
-                    Visit {creator.displayName}&apos;s Store
-                    <ChevronRight className="h-4 w-4 ml-1" />
-                  </Link>
-                </Button>
-                <Button variant="outline" className="w-full" asChild>
-                  <Link href="/">Browse More Stores</Link>
-                </Button>
+                <Label htmlFor="donationAmount">Add a donation (optional)</Label>
+                <Input
+                  id="donationAmount"
+                  type="number"
+                  min="0"
+                  placeholder="Enter amount (UGX)"
+                  value={donationAmount}
+                  onChange={(e) => setDonationAmount(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Support {creator.displayName} with an additional donation
+                </p>
+              </div>
+            )}
+
+            {/* Order Summary */}
+            <div className="rounded-lg bg-muted/50 p-4 space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Product</span>
+                <span className="font-medium">{product.title}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-muted-foreground">Price</span>
+                <span>{formatCurrency(product.price)}</span>
+              </div>
+              {donationAmount && parseInt(donationAmount) > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Donation</span>
+                  <span>{formatCurrency(parseInt(donationAmount))}</span>
+                </div>
+              )}
+              <div className="border-t pt-2 flex justify-between font-medium">
+                <span>Total</span>
+                <span>{formatCurrency(product.price + (donationAmount ? parseInt(donationAmount) : 0))}</span>
               </div>
             </div>
-          ) : (
-            <>
-              <DialogHeader>
-                <DialogTitle>Complete Purchase</DialogTitle>
-                <DialogDescription>
-                  {product.title} — {formatCurrency(product.price)}
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="buyerName">Full Name</Label>
-                  <Input
-                    id="buyerName"
-                    value={buyerName}
-                    onChange={(e) => setBuyerName(e.target.value)}
-                    placeholder="Your full name"
-                  />
-                </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="buyerEmail">Email Address</Label>
-                  <Input
-                    id="buyerEmail"
-                    type="email"
-                    value={buyerEmail}
-                    onChange={(e) => setBuyerEmail(e.target.value)}
-                    placeholder="your@email.com"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    {isEvent
-                      ? "Ticket and QR code will be sent to this email"
-                      : "Download link will be sent to this email (valid for 24 hours)"}
-                  </p>
-                </div>
+            <Button
+              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white h-11"
+              onClick={handlePurchase}
+              disabled={isProcessing}
+            >
+              {isProcessing ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                <>Pay {formatCurrency(product.price + (donationAmount ? parseInt(donationAmount) : 0))}</>
+              )}
+            </Button>
 
-                <div className="space-y-2">
-                  <Label>Payment Method</Label>
-                  <Select
-                    value={paymentMethod}
-                    onValueChange={(val) => setPaymentMethod(val as PaymentMethod)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select payment method" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="mtn_momo">
-                        <span className="flex items-center gap-2">
-                          <Smartphone className="h-3.5 w-3.5" />
-                          MTN Mobile Money
-                        </span>
-                      </SelectItem>
-                      <SelectItem value="airtel_money">
-                        <span className="flex items-center gap-2">
-                          <Smartphone className="h-3.5 w-3.5" />
-                          Airtel Money
-                        </span>
-                      </SelectItem>
-                      <SelectItem value="bank_transfer">
-                        <span className="flex items-center gap-2">
-                          <CreditCard className="h-3.5 w-3.5" />
-                          Bank Transfer
-                        </span>
-                      </SelectItem>
-                      <SelectItem value="card">
-                        <span className="flex items-center gap-2">
-                          <CreditCard className="h-3.5 w-3.5" />
-                          Card Payment
-                        </span>
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Order Summary */}
-                <div className="rounded-lg bg-muted/50 p-4 space-y-2">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Product</span>
-                    <span className="font-medium">{product.title}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Price</span>
-                    <span>{formatCurrency(product.price)}</span>
-                  </div>
-                  <div className="border-t pt-2 flex justify-between font-medium">
-                    <span>Total</span>
-                    <span>{formatCurrency(product.price)}</span>
-                  </div>
-                </div>
-
-                <Button
-                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white h-11"
-                  onClick={handlePurchase}
-                  disabled={isProcessing}
-                >
-                  {isProcessing ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Processing...
-                    </>
-                  ) : (
-                    <>Pay {formatCurrency(product.price)}</>
-                  )}
-                </Button>
-              </div>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
+            <p className="text-xs text-center text-muted-foreground">
+              You will be redirected to Pesapal to complete your payment securely.
+            </p>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

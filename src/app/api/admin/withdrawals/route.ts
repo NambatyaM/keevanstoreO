@@ -177,22 +177,31 @@ export async function PATCH(request: NextRequest) {
     }
 
     if (action === "approve") {
-      // Balance was already deducted at request time via process_withdrawal_request RPC
-      // Here we only update the status to "completed" - do NOT deduct balance again
-      const { data: updatedRow, error: updateError } = await serviceClient
+      // FIXED: Use ledger-based process_withdrawal_completion_ledger RPC
+      // This atomically moves funds from pending to withdrawn balance
+      const { error: completionError } = await serviceClient.rpc("process_withdrawal_completion_ledger", {
+        p_withdrawal_id: withdrawalId,
+      });
+
+      if (completionError) {
+        console.error("Error completing withdrawal:", completionError);
+        return NextResponse.json(
+          { success: false, error: completionError.message || "Failed to approve withdrawal" },
+          { status: 500 }
+        );
+      }
+
+      // Fetch the updated withdrawal to return
+      const { data: updatedRow, error: fetchError } = await serviceClient
         .from("withdrawals")
-        .update({
-          status: "completed",
-          processed_at: new Date().toISOString(),
-        })
+        .select("*")
         .eq("id", withdrawalId)
-        .select()
         .single();
 
-      if (updateError || !updatedRow) {
-        console.error("Error approving withdrawal:", updateError);
+      if (fetchError || !updatedRow) {
+        console.error("Error fetching updated withdrawal:", fetchError);
         return NextResponse.json(
-          { success: false, error: "Failed to approve withdrawal" },
+          { success: false, error: "Failed to fetch updated withdrawal" },
           { status: 500 }
         );
       }
@@ -203,48 +212,32 @@ export async function PATCH(request: NextRequest) {
         data: withdrawal,
       });
     } else {
-      // Reject withdrawal - refund the balance back to the creator
-      const { data: withdrawalRow } = await serviceClient
-        .from("withdrawals")
-        .select("creator_id, amount")
-        .eq("id", withdrawalId)
-        .single();
-
-      if (!withdrawalRow) {
-        return NextResponse.json(
-          { success: false, error: "Withdrawal not found" },
-          { status: 404 }
-        );
-      }
-
-      // Refund balance atomically using RPC
-      const { error: refundError } = await serviceClient.rpc("refund_withdrawal", {
+      // Reject withdrawal - use ledger-based process_withdrawal_rejection_ledger RPC
+      // This atomically moves funds back from pending to available balance
+      const { error: rejectError } = await serviceClient.rpc("process_withdrawal_rejection_ledger", {
         p_withdrawal_id: withdrawalId,
+        p_admin_notes: body.admin_notes || null,
       });
 
-      if (refundError) {
-        console.error("Error refunding withdrawal:", refundError);
+      if (rejectError) {
+        console.error("Error rejecting withdrawal:", rejectError);
         return NextResponse.json(
-          { success: false, error: "Failed to refund withdrawal" },
+          { success: false, error: rejectError.message || "Failed to reject withdrawal" },
           { status: 500 }
         );
       }
 
-      // Update withdrawal status to rejected
-      const { data: updatedRow, error: updateError } = await serviceClient
+      // Fetch the updated withdrawal to return
+      const { data: updatedRow, error: fetchError } = await serviceClient
         .from("withdrawals")
-        .update({
-          status: "rejected",
-          processed_at: new Date().toISOString(),
-        })
+        .select("*")
         .eq("id", withdrawalId)
-        .select()
         .single();
 
-      if (updateError || !updatedRow) {
-        console.error("Error updating withdrawal status:", updateError);
+      if (fetchError || !updatedRow) {
+        console.error("Error fetching updated withdrawal:", fetchError);
         return NextResponse.json(
-          { success: false, error: "Failed to update withdrawal status" },
+          { success: false, error: "Failed to fetch updated withdrawal" },
           { status: 500 }
         );
       }

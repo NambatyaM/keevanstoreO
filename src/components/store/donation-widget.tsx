@@ -63,13 +63,20 @@ export function DonationWidget({ creator }: DonationWidgetProps) {
 
       const data = await response.json();
       if (data.success) {
-        toast.success("Thank you for your donation! 🎉");
-        setAmount("");
-        setMessage("");
-        setDonorName("");
-        setDonorEmail("");
-        setAnonymous(false);
-        setShowForm(false);
+        // FIXED: Check if paymentUrl exists (Pesapal redirect)
+        if (data.data?.paymentUrl) {
+          // Redirect to Pesapal for payment
+          window.location.href = data.data.paymentUrl;
+        } else {
+          // Fallback for mock mode or if no payment URL
+          toast.success("Thank you for your donation! 🎉");
+          setAmount("");
+          setMessage("");
+          setDonorName("");
+          setDonorEmail("");
+          setAnonymous(false);
+          setShowForm(false);
+        }
       } else {
         toast.error(data.error || "Donation failed. Please try again.");
       }

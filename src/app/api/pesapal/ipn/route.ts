@@ -118,46 +118,34 @@ export async function POST(request: NextRequest) {
     }
 
     if (transactionStatus.payment_status === "COMPLETED") {
-      // FIXED: Handle donations separately - if product_id is null, this is a donation
+      // FIXED: Use ledger-based RPC functions for production-grade financial tracking
+      // Handle donations separately - if product_id is null, this is a donation
       if (!orderRow.product_id) {
-        // This is a donation - use the process_donation RPC to update donation_current
-        const { error: donationRpcError } = await serviceClient.rpc("process_donation", {
-          p_creator_id: orderRow.creator_id,
-          p_amount: orderRow.amount,
-          p_creator_earning: orderRow.creator_earning,
+        // This is a donation - use the ledger-based process_donation_ledger RPC
+        const { error: donationRpcError } = await serviceClient.rpc("process_donation_ledger", {
+          p_order_id: orderRow.id,
+          p_pesapal_transaction_id: transactionStatus.confirmation_code || "",
         });
 
         if (donationRpcError) {
-          console.error("process_donation RPC failed:", donationRpcError.message);
-          // Fallback: manual update
-          await serviceClient
-            .from("orders")
-            .update({
-              status: "completed",
-              pesapal_transaction_id: transactionStatus.confirmation_code || "",
-            })
-            .eq("id", orderRow.id);
-        } else {
-          // Update order status after successful donation processing
-          await serviceClient
-            .from("orders")
-            .update({
-              status: "completed",
-              pesapal_transaction_id: transactionStatus.confirmation_code || "",
-            })
-            .eq("id", orderRow.id);
+          console.error("process_donation_ledger RPC failed:", donationRpcError.message);
+          // Return 500 to trigger Pesapal retry
+          return NextResponse.json(
+            { success: false, error: "Donation processing failed, will retry" },
+            { status: 500 }
+          );
         }
       } else {
-        // This is a product purchase - use the atomic process_completed_payment RPC function
-        // This handles order status, creator balance, product sales count, and event tickets atomically
+        // This is a product purchase - use the ledger-based process_completed_payment_ledger RPC function
+        // This atomically creates ledger entries for: SALE_COMPLETED, COMMISSION_DEDUCTED, CREATOR_EARNING_CREDITED
         // preventing TOCTOU race conditions from concurrent IPN callbacks
-        const { error: rpcError } = await serviceClient.rpc("process_completed_payment", {
+        const { error: rpcError } = await serviceClient.rpc("process_completed_payment_ledger", {
           p_order_id: orderRow.id,
           p_pesapal_transaction_id: transactionStatus.confirmation_code || "",
         });
 
         if (rpcError) {
-          console.error("process_completed_payment RPC failed:", rpcError.message);
+          console.error("process_completed_payment_ledger RPC failed:", rpcError.message);
           // Only swallow idempotency errors (order already completed)
           // For all other errors, return 500 to trigger Pesapal retry
           if (!rpcError.message.includes("already completed") && !rpcError.message.includes("already processed")) {
@@ -171,7 +159,7 @@ export async function POST(request: NextRequest) {
 
       const productId = orderRow.product_id;
 
-      // FIXED: Handle donations that are part of product purchases
+      // FIXED: Handle donations that are part of product purchases using ledger
       // Check if there's a donation record linked to this order
       if (productId) {
         const { data: donationRecord } = await serviceClient
@@ -181,29 +169,36 @@ export async function POST(request: NextRequest) {
           .maybeSingle();
 
         if (donationRecord) {
-          // Update donation_current for the creator
-          // FIXED: Use process_donation RPC which already handles donation_current
-          const { error: donationUpdateError } = await serviceClient.rpc("process_donation", {
+          // Create ledger entry for donation portion of purchase
+          // Donations have no platform fee, so full amount goes to creator
+          const { error: donationLedgerError } = await serviceClient.rpc("create_ledger_entry", {
             p_creator_id: orderRow.creator_id,
+            p_transaction_type: "DONATION_RECEIVED",
             p_amount: donationRecord.amount,
-            p_creator_earning: donationRecord.amount, // For donations, amount = creator_earning (no platform fee on donation portion)
+            p_reference_id: orderRow.id,
+            p_reference_type: "order",
+            p_description: "Donation with product purchase from " + orderRow.buyer_email,
+            p_metadata: {
+              order_id: orderRow.id,
+              donation_amount: donationRecord.amount,
+              donor_email: orderRow.buyer_email
+            }
           });
+          
+          if (donationLedgerError) {
+            console.error("Failed to create donation ledger entry:", donationLedgerError.message);
+          }
+          
+          // Update donation_current on creators table for display purposes
+          const { error: donationUpdateError } = await serviceClient
+            .from("creators")
+            .update({
+              donation_current: (orderRow.donation_current || 0) + donationRecord.amount,
+            })
+            .eq("id", orderRow.creator_id);
+            
           if (donationUpdateError) {
             console.error("Failed to increment donation_current:", donationUpdateError.message);
-            // Fallback: manual update
-            const { data: currentCreator } = await serviceClient
-              .from("creators")
-              .select("donation_current")
-              .eq("id", orderRow.creator_id)
-              .single();
-            if (currentCreator) {
-              await serviceClient
-                .from("creators")
-                .update({
-                  donation_current: (currentCreator.donation_current || 0) + donationRecord.amount,
-                })
-                .eq("id", orderRow.creator_id);
-            }
           }
         }
 
