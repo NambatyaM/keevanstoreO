@@ -4,6 +4,25 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { updateSession } from "@/lib/supabase/middleware";
 
+// Simple in-memory cache for admin status (5 minute TTL)
+const adminCache = new Map<string, { isAdmin: boolean; expiresAt: number }>();
+
+function getCachedAdminStatus(userId: string): boolean | null {
+  const cached = adminCache.get(userId);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.isAdmin;
+  }
+  adminCache.delete(userId);
+  return null;
+}
+
+function setCachedAdminStatus(userId: string, isAdmin: boolean): void {
+  adminCache.set(userId, {
+    isAdmin,
+    expiresAt: Date.now() + 5 * 60 * 1000, // 5 minutes
+  });
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -72,13 +91,20 @@ export async function middleware(request: NextRequest) {
         if (supabase) {
           const { data: { user } } = await supabase.auth.getUser();
           if (user) {
-            const { data: creatorRow } = await supabase
-              .from("creators")
-              .select("is_admin")
-              .eq("id", user.id)
-              .single();
-            if (creatorRow?.is_admin) {
-              isAuthorized = true;
+            // Check cache first
+            const cachedAdmin = getCachedAdminStatus(user.id);
+            if (cachedAdmin !== null) {
+              isAuthorized = cachedAdmin;
+            } else {
+              // Query database if not cached
+              const { data: creatorRow } = await supabase
+                .from("creators")
+                .select("is_admin")
+                .eq("id", user.id)
+                .single();
+              const isAdmin = creatorRow?.is_admin || false;
+              setCachedAdminStatus(user.id, isAdmin);
+              isAuthorized = isAdmin;
             }
           }
         }

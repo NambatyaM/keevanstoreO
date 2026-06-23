@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { uploadFile, getR2ConfigStatus } from "@/lib/r2";
 import { verifyAuth } from "@/lib/auth-helpers";
 import { checkRateLimit, getClientId } from "@/lib/rate-limit";
+import { handleApiError, getStatusCode } from "@/lib/error-handler";
 
 // Allowed MIME types for upload
 const ALLOWED_MIME_TYPES: Record<string, string[]> = {
@@ -37,19 +38,50 @@ const ALLOWED_EXTENSIONS = [
   "mp4", "webm",
 ];
 
+// Magic numbers (file signatures) for validation
+const MAGIC_NUMBERS: Record<string, number[]> = {
+  "image/jpeg": [0xFF, 0xD8, 0xFF],
+  "image/png": [0x89, 0x50, 0x4E, 0x47],
+  "image/gif": [0x47, 0x49, 0x46],
+  "image/webp": [0x52, 0x49, 0x46, 0x46],
+  "image/svg+xml": [], // SVG is text-based, no magic number
+  "application/pdf": [0x25, 0x50, 0x44, 0x46],
+  "application/zip": [0x50, 0x4B, 0x03, 0x04],
+  "application/x-zip-compressed": [0x50, 0x4B, 0x03, 0x04],
+  "application/vnd.rar": [0x52, 0x61, 0x72, 0x21],
+  "audio/mpeg": [0xFF, 0xFB],
+  "audio/wav": [0x52, 0x49, 0x46, 0x46],
+  "audio/ogg": [0x4F, 0x67, 0x67, 0x53],
+  "audio/mp4": [0x00, 0x00, 0x00], // MP4 audio container
+  "video/mp4": [0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70],
+  "video/webm": [0x1A, 0x45, 0xDF, 0xA3],
+};
+
 function sanitizePathSegment(input: string): string {
   // Remove any path traversal characters and non-alphanumeric chars (except hyphens)
   return input.replace(/[^a-zA-Z0-9-]/g, "").toLowerCase();
 }
 
+function validateMagicNumber(buffer: Buffer, mimeType: string): boolean {
+  const magicNumbers = MAGIC_NUMBERS[mimeType];
+  if (!magicNumbers || magicNumbers.length === 0) {
+    return true; // Skip validation for types without magic numbers (e.g., SVG)
+  }
+
+  // Check if buffer starts with the expected magic number
+  for (let i = 0; i < magicNumbers.length; i++) {
+    if (buffer[i] !== magicNumbers[i]) {
+      return false;
+    }
+  }
+  return true;
+}
+
 export async function POST(request: NextRequest) {
   try {
-    console.log("Upload request received");
-
     // Check R2 configuration first
     const r2Status = getR2ConfigStatus();
     if (!r2Status.configured) {
-      console.error("R2 not configured:", r2Status);
       return NextResponse.json(
         {
           success: false,
@@ -64,7 +96,6 @@ export async function POST(request: NextRequest) {
     const clientId = getClientId(request);
     const rateLimit = checkRateLimit(`uploads:${clientId}`, 10, 60 * 1000);
     if (!rateLimit.allowed) {
-      console.log("Rate limit exceeded for client:", clientId);
       return NextResponse.json(
         { success: false, error: "Too many upload attempts. Please try again later." },
         { status: 429 }
@@ -74,14 +105,12 @@ export async function POST(request: NextRequest) {
     // Authentication check — user must be logged in
     const authResult = await verifyAuth(request);
     if (!authResult.isAuthenticated) {
-      console.log("Upload failed: User not authenticated");
       return NextResponse.json(
         { success: false, error: "Unauthorized: Please log in to upload files" },
         { status: 401 }
       );
     }
 
-    console.log("User authenticated successfully:", authResult.userId);
 
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
@@ -89,14 +118,12 @@ export async function POST(request: NextRequest) {
     const rawFolder = (formData.get("folder") as string) || "uploads";
 
     if (!file) {
-      console.log("Upload failed: No file provided");
       return NextResponse.json(
         { success: false, error: "No file provided" },
         { status: 400 }
       );
     }
 
-    console.log("File received:", { name: file.name, size: file.size, type: file.type });
 
     // Validate folder name against allowlist
     const folder = ALLOWED_FOLDERS.includes(rawFolder) ? rawFolder : "uploads";
@@ -133,13 +160,17 @@ export async function POST(request: NextRequest) {
     const randomStr = Math.random().toString(36).slice(2, 8);
     const key = `${folder}/${timestamp}-${randomStr}.${ext}`;
 
-    console.log("Starting upload to:", { bucket, key, contentType: file.type });
-
     const buffer = Buffer.from(await file.arrayBuffer());
-    console.log("Buffer created, size:", buffer.length);
+
+    // Validate file content using magic numbers
+    if (!validateMagicNumber(buffer, file.type)) {
+      return NextResponse.json(
+        { success: false, error: `File content does not match declared type "${file.type}". File may be corrupted or renamed.` },
+        { status: 400 }
+      );
+    }
 
     const url = await uploadFile(bucket, key, buffer, file.type);
-    console.log("Upload successful, URL:", url);
 
     return NextResponse.json({
       success: true,
@@ -152,46 +183,8 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error) {
-    console.error("Error in uploads POST:", error instanceof Error ? error.message : String(error));
-    console.error("Error stack:", error instanceof Error ? error.stack : "No stack trace");
-    console.error("Error details:", JSON.stringify(error, Object.getOwnPropertyNames(error)));
-
-    // Provide specific error messages based on error type
-    let errorMessage = "Upload failed. Please check your connection and try again.";
-    let statusCode = 500;
-
-    if (error instanceof Error) {
-      const message = error.message.toLowerCase();
-
-      if (message.includes("not configured") || message.includes("r2")) {
-        errorMessage = "Storage not configured. Please contact support.";
-        statusCode = 503;
-      } else if (message.includes("credentials") || message.includes("access key")) {
-        errorMessage = "Storage authentication failed. Please contact support.";
-        statusCode = 503;
-      } else if (message.includes("network") || message.includes("fetch") || message.includes("etimedout")) {
-        errorMessage = "Network error. Please check your connection and try again.";
-      } else if (message.includes("econnrefused")) {
-        errorMessage = "Connection refused. Please check your network settings.";
-      } else if (message.includes("bucket") || message.includes("not found")) {
-        errorMessage = "Storage bucket not found. Please contact support.";
-        statusCode = 503;
-      } else if (message.includes("permission") || message.includes("access denied")) {
-        errorMessage = "Access denied. Please check storage permissions.";
-        statusCode = 403;
-      } else if (message.includes("quota") || message.includes("limit")) {
-        errorMessage = "Storage quota exceeded. Please contact support.";
-        statusCode = 507;
-      }
-    }
-
-    return NextResponse.json(
-      {
-        success: false,
-        error: errorMessage,
-        details: error instanceof Error ? error.message : String(error),
-      },
-      { status: statusCode }
-    );
+    const errorResponse = handleApiError(error);
+    const statusCode = getStatusCode(error);
+    return NextResponse.json(errorResponse, { status: statusCode });
   }
 }

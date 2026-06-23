@@ -7,6 +7,7 @@ import { isUsingMockData, getMockCreatorById, mockCreators, getMockPassword } fr
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { mapCreatorFromDb } from "@/lib/db-mappers";
 import { checkRateLimit, getClientId, rateLimitHeaders } from "@/lib/rate-limit";
+import { handleApiError, getStatusCode } from "@/lib/error-handler";
 // FIXED: Blueprint Phase 3 — Zod validation
 import { loginSchema } from "@/lib/validations";
 
@@ -98,11 +99,6 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (creatorError || !creatorRow) {
-      console.error("Failed to fetch creator profile:", {
-        error: creatorError?.message,
-        code: creatorError?.code,
-        userId: authData.user.id,
-      });
       return NextResponse.json(
         {
           success: false,
@@ -131,11 +127,9 @@ export async function POST(request: NextRequest) {
 
     return response;
   } catch (error) {
-    console.error("Error in login POST:", error instanceof Error ? error.message : String(error));
-    return NextResponse.json(
-      { success: false, error: "Internal server error" },
-      { status: 500 }
-    );
+    const errorResponse = handleApiError(error);
+    const statusCode = getStatusCode(error);
+    return NextResponse.json(errorResponse, { status: statusCode });
   }
 }
 
@@ -155,7 +149,6 @@ export async function GET(request: NextRequest) {
           });
         }
       } catch (error) {
-        console.error("Error in login GET cookie parse:", error instanceof Error ? error.message : String(error));
         // Invalid cookie, fall through
       }
     }

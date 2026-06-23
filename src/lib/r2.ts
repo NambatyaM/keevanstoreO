@@ -32,7 +32,6 @@ function getR2Client(): S3Client {
   }
   if (r2Client) return r2Client;
 
-  console.log("Initializing R2 client with account:", R2_ACCOUNT_ID);
   r2Client = new S3Client({
     region: "auto",
     endpoint: `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
@@ -62,7 +61,6 @@ export async function uploadFile(
         ContentType: contentType,
       })
     );
-    console.log(`File uploaded to R2: ${bucket}/${key}`);
     // FIXED: Return public URL format for R2 public buckets
     // Use the pub- subdomain format for public R2 bucket access
     return `https://pub-${R2_ACCOUNT_ID}.r2.dev/${bucket}/${key}`;

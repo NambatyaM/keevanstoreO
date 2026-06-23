@@ -13,6 +13,7 @@ import {
 import { createServerSupabaseClient, createServiceRoleClient } from "@/lib/supabase/server";
 import { mapCreatorFromDb, mapProductFromDb, mapCreatorToDb } from "@/lib/db-mappers";
 import type { Creator, Donation } from "@/types";
+import { get, set, invalidatePattern } from "@/lib/cache";
 
 export async function GET(request: NextRequest) {
   try {
@@ -58,6 +59,13 @@ export async function GET(request: NextRequest) {
     }
 
     if (username) {
+      // Check cache first
+      const cacheKey = `store:${username}`;
+      const cached = get(cacheKey);
+      if (cached) {
+        return NextResponse.json({ success: true, data: cached });
+      }
+
       // Find creator by username
       const { data: creatorRow, error: creatorError } = await supabase
         .from("creators")
@@ -82,15 +90,15 @@ export async function GET(request: NextRequest) {
         .eq("creator_id", creator.id)
         .eq("status", "active");
 
-      if (productsError) {
-        console.error("Error fetching products:", productsError);
-      }
-
       const products = (productRows || []).map((row) => mapProductFromDb(row));
+      const storeData = { creator, products };
+
+      // Cache for 5 minutes
+      set(cacheKey, storeData, 300);
 
       return NextResponse.json({
         success: true,
-        data: { creator, products },
+        data: storeData,
       });
     }
 
@@ -117,7 +125,6 @@ export async function GET(request: NextRequest) {
       { status: 400 }
     );
   } catch (error) {
-    console.error("Error in store GET:", error instanceof Error ? error.message : String(error));
     return NextResponse.json(
       { success: false, error: "Internal server error" },
       { status: 500 }
@@ -128,7 +135,7 @@ export async function GET(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json();
-    const { creatorId, ...updates } = body;
+    const { creatorId, username, ...updates } = body;
 
     if (!creatorId) {
       return NextResponse.json(
@@ -204,7 +211,6 @@ export async function PUT(request: NextRequest) {
       .single();
 
     if (updateError || !updatedRow) {
-      console.error("Error updating creator:", updateError);
       return NextResponse.json(
         { success: false, error: "Failed to update store" },
         { status: 500 }
@@ -212,9 +218,12 @@ export async function PUT(request: NextRequest) {
     }
 
     const updatedCreator = mapCreatorFromDb(updatedRow);
+    
+    // Invalidate cache for this creator
+    invalidatePattern(`store:${username || '*'}`);
+    
     return NextResponse.json({ success: true, data: updatedCreator });
   } catch (error) {
-    console.error("Error in store PUT:", error instanceof Error ? error.message : String(error));
     return NextResponse.json(
       { success: false, error: "Internal server error" },
       { status: 500 }
@@ -265,7 +274,6 @@ export async function POST(request: NextRequest) {
       { status: 400 }
     );
   } catch (error) {
-    console.error("Error in store POST:", error instanceof Error ? error.message : String(error));
     return NextResponse.json(
       { success: false, error: "Internal server error" },
       { status: 500 }

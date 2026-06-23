@@ -11,6 +11,7 @@ import {
 import { createServiceRoleClient } from "@/lib/supabase/server";
 import { getSignedUrl } from "@/lib/r2";
 import { mapProductFromDb } from "@/lib/db-mappers";
+import { handleApiError, getStatusCode } from "@/lib/error-handler";
 
 export async function GET(
   request: NextRequest,
@@ -175,7 +176,6 @@ export async function GET(
         try {
           downloadUrl = await getSignedUrl(bucket, key);
         } catch (error) {
-          console.error("Error in download GET signed URL:", error instanceof Error ? error.message : String(error));
           // Fallback to the raw URL
           downloadUrl = fileUrl;
         }
@@ -217,10 +217,8 @@ export async function GET(
       },
     });
   } catch (error) {
-    console.error("Error in download GET:", error instanceof Error ? error.message : String(error));
-    return NextResponse.json(
-      { success: false, error: "Internal server error" },
-      { status: 500 }
-    );
+    const errorResponse = handleApiError(error);
+    const statusCode = getStatusCode(error);
+    return NextResponse.json(errorResponse, { status: statusCode });
   }
 }
