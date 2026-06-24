@@ -63,9 +63,10 @@ export async function uploadFile(
     );
     // FIXED: Return public URL format for R2 public buckets
     // Use the pub- subdomain format for public R2 bucket access
-    return `https://pub-${R2_ACCOUNT_ID}.r2.dev/${bucket}/${key}`;
+    const publicUrl = `https://pub-${R2_ACCOUNT_ID}.r2.dev/${bucket}/${key}`;
+    console.log("R2 upload successful. Public URL:", publicUrl);
+    return publicUrl;
   } catch (error) {
-    console.error("R2 upload error:", error);
     if (error instanceof Error) {
       throw new Error(`File upload failed: ${error.message}`);
     }

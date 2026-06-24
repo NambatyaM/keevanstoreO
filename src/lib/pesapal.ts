@@ -1,14 +1,24 @@
 // ============================================================
-// Pesapal Payment Integration Module
+// Pesapal Payment Integration Module - API v3.0
 // ============================================================
-// FIXED: Blueprint Issue B — Token cache and IPN ID moved to globalThis
-// to survive Next.js hot-reloads and prevent thundering-herd token requests
-// when multiple concurrent checkouts fire simultaneously.
+// Rebuilt to follow exact Pesapal API 3.0 specification
+// Reference: https://developer.pesapal.com/how-to-integrate/e-commerce/api-30-json/api-reference
 // ============================================================
 
 const PESAPAL_CONSUMER_KEY = process.env.PESAPAL_CONSUMER_KEY;
 const PESAPAL_CONSUMER_SECRET = process.env.PESAPAL_CONSUMER_SECRET;
-const PESAPAL_API_URL = process.env.PESAPAL_API_URL || "https://cybqa.pesapal.com/pesapalv3/api";
+const PESAPAL_IPN_ID = process.env.PESAPAL_IPN_ID;
+const PESAPAL_IPN_URL = process.env.PESAPAL_IPN_URL;
+const PESAPAL_CALLBACK_URL = process.env.PESAPAL_CALLBACK_URL;
+const PESAPAL_ENV = process.env.PESAPAL_ENV || "sandbox";
+
+// Base URLs
+const PESAPAL_BASE_URLS = {
+  sandbox: "https://cybqa.pesapal.com/pesapalv3",
+  live: "https://pay.pesapal.com/v3",
+};
+
+const PESAPAL_API_URL = PESAPAL_BASE_URLS[PESAPAL_ENV as keyof typeof PESAPAL_BASE_URLS] || PESAPAL_BASE_URLS.sandbox;
 
 const isPesapalConfigured =
   PESAPAL_CONSUMER_KEY && PESAPAL_CONSUMER_KEY !== "mock" &&
@@ -20,15 +30,15 @@ const _g = globalThis as typeof globalThis & {
   __pesapalAuthToken: string | null;
   __pesapalAuthTokenExpiry: number;
   __pesapalAuthInFlight: Promise<string | null> | null;
-  __pesapalCachedIpnId: string | null;
-  __pesapalCachedIpnUrl: string | null;
 };
 
 if (_g.__pesapalAuthToken === undefined) _g.__pesapalAuthToken = null;
 if (_g.__pesapalAuthTokenExpiry === undefined) _g.__pesapalAuthTokenExpiry = 0;
 if (_g.__pesapalAuthInFlight === undefined) _g.__pesapalAuthInFlight = null;
-if (_g.__pesapalCachedIpnId === undefined) _g.__pesapalCachedIpnId = null;
-if (_g.__pesapalCachedIpnUrl === undefined) _g.__pesapalCachedIpnUrl = null;
+
+// ============================================================
+// Types
+// ============================================================
 
 export interface PesapalAuthResponse {
   token: string;
@@ -50,11 +60,6 @@ export interface PesapalOrderRequest {
     country_code: string;
     first_name: string;
     last_name: string;
-    line_1: string;
-    city: string;
-    state: string;
-    postal_code: string;
-    zip_code: string;
   };
 }
 
@@ -72,6 +77,7 @@ export interface PesapalTransactionStatus {
   created_date: string;
   confirmation_code: string;
   payment_status: string;
+  payment_status_description: string;
   description: string;
   message: string;
   order_tracking_id: string;
@@ -80,25 +86,40 @@ export interface PesapalTransactionStatus {
   status?: string;
 }
 
-export async function authenticate(): Promise<string | null> {
+export interface PesapalIPNRegistrationRequest {
+  url: string;
+  ipn_notification_type: string;
+}
+
+export interface PesapalIPNRegistrationResponse {
+  ipn_id: string;
+  url: string;
+  error?: string;
+  status?: string;
+}
+
+// ============================================================
+// STEP 1 — Authentication (Get Bearer Token)
+// ============================================================
+
+export async function getPesapalToken(): Promise<string> {
   if (!isPesapalConfigured) {
-    return "mock-pesapal-token";
+    throw new Error("Pesapal is not configured. Please set PESAPAL_CONSUMER_KEY and PESAPAL_CONSUMER_SECRET environment variables.");
   }
 
-  // Return cached token if still valid
+  // Return cached token if still valid (token is valid for 5 minutes)
   if (_g.__pesapalAuthToken && Date.now() < _g.__pesapalAuthTokenExpiry) {
     return _g.__pesapalAuthToken;
   }
 
-  // FIXED: Blueprint Issue B — if a token request is already in-flight,
-  // wait for it instead of sending a duplicate request to Pesapal.
+  // If a token request is already in-flight, wait for it
   if (_g.__pesapalAuthInFlight) {
     return _g.__pesapalAuthInFlight;
   }
 
-  _g.__pesapalAuthInFlight = (async (): Promise<string | null> => {
+  _g.__pesapalAuthInFlight = (async (): Promise<string> => {
     try {
-      const response = await fetch(`${PESAPAL_API_URL}/Auth/RequestToken`, {
+      const response = await fetch(`${PESAPAL_API_URL}/api/Auth/RequestToken`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -112,19 +133,22 @@ export async function authenticate(): Promise<string | null> {
 
       const data: PesapalAuthResponse = await response.json();
 
-      if (data.token) {
-        _g.__pesapalAuthToken = data.token;
-        // Expire 5 minutes before actual expiry to avoid using a stale token
-        _g.__pesapalAuthTokenExpiry = new Date(data.expiryDate).getTime() - 5 * 60 * 1000;
-        return _g.__pesapalAuthToken;
+      if (data.error) {
+        throw new Error(`Pesapal authentication failed: ${data.error}`);
       }
 
-      return null;
-    } catch {
-      console.error("Failed to authenticate with Pesapal");
-      return null;
+      if (!data.token) {
+        throw new Error("Pesapal authentication failed: No token received");
+      }
+
+      _g.__pesapalAuthToken = data.token;
+      // Token is valid for 5 minutes - set expiry to 4.5 minutes to be safe
+      _g.__pesapalAuthTokenExpiry = Date.now() + 4.5 * 60 * 1000;
+      
+      return _g.__pesapalAuthToken;
+    } catch (error) {
+      throw new Error(`Failed to authenticate with Pesapal: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
-      // Clear the in-flight promise so the next failure triggers a fresh attempt
       _g.__pesapalAuthInFlight = null;
     }
   })();
@@ -132,24 +156,61 @@ export async function authenticate(): Promise<string | null> {
   return _g.__pesapalAuthInFlight;
 }
 
-export async function submitOrder(
-  orderDetails: PesapalOrderRequest
-): Promise<PesapalOrderResponse | null> {
-  const token = await authenticate();
+// ============================================================
+// STEP 2 — Register IPN URL
+// ============================================================
 
-  if (!isPesapalConfigured) {
-    // Mock response
-    return {
-      order_tracking_id: `mock-${Date.now()}`,
-      merchant_reference: orderDetails.id,
-      redirect_url: `${process.env.NEXT_PUBLIC_APP_URL || ""}/dashboard?payment=mock-success`,
-    };
-  }
-
-  if (!token) return null;
+export async function registerIPN(ipnUrl: string): Promise<string> {
+  const token = await getPesapalToken();
 
   try {
-    const response = await fetch(`${PESAPAL_API_URL}/Transactions/SubmitOrder`, {
+    const response = await fetch(`${PESAPAL_API_URL}/api/Transactions/RegisterIpnUrl`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        url: ipnUrl,
+        ipn_notification_type: "GET",
+      } as PesapalIPNRegistrationRequest),
+    });
+
+    const data: PesapalIPNRegistrationResponse = await response.json();
+
+    if (data.error) {
+      throw new Error(`Failed to register IPN: ${data.error}`);
+    }
+
+    if (!data.ipn_id) {
+      throw new Error("Failed to register IPN: No IPN ID received");
+    }
+
+    return data.ipn_id;
+  } catch (error) {
+    throw new Error(`Failed to register IPN with Pesapal: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+// ============================================================
+// STEP 3 — Submit Order Request (Initiate Payment)
+// ============================================================
+
+export async function submitOrderRequest(
+  orderDetails: PesapalOrderRequest
+): Promise<PesapalOrderResponse> {
+  // Validate that IPN ID is configured
+  if (!PESAPAL_IPN_ID) {
+    throw new Error(
+      "IPN ID not configured. Register your IPN URL first using /api/pesapal/register-ipn and set PESAPAL_IPN_ID in your environment variables."
+    );
+  }
+
+  const token = await getPesapalToken();
+
+  try {
+    const response = await fetch(`${PESAPAL_API_URL}/api/Transactions/SubmitOrderRequest`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -160,38 +221,33 @@ export async function submitOrder(
     });
 
     const data: PesapalOrderResponse = await response.json();
+
+    if (data.error) {
+      throw new Error(`Failed to submit order: ${data.error}`);
+    }
+
+    if (!data.order_tracking_id || !data.redirect_url) {
+      throw new Error("Failed to submit order: Invalid response from Pesapal");
+    }
+
     return data;
-  } catch {
-    console.error("Failed to submit order to Pesapal");
-    return null;
+  } catch (error) {
+    throw new Error(`Failed to submit order to Pesapal: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
+// ============================================================
+// STEP 5 — Get Transaction Status
+// ============================================================
+
 export async function getTransactionStatus(
   orderTrackingId: string
-): Promise<PesapalTransactionStatus | null> {
-  const token = await authenticate();
-
-  if (!isPesapalConfigured) {
-    // Mock response
-    return {
-      payment_method: "Mobile Money",
-      amount: 0,
-      created_date: new Date().toISOString(),
-      confirmation_code: `MOCK-${Date.now()}`,
-      payment_status: "COMPLETED",
-      description: "Mock payment completed",
-      message: "Payment completed successfully",
-      order_tracking_id: orderTrackingId,
-      merchant_reference: `ref-${Date.now()}`,
-    };
-  }
-
-  if (!token) return null;
+): Promise<PesapalTransactionStatus> {
+  const token = await getPesapalToken();
 
   try {
     const response = await fetch(
-      `${PESAPAL_API_URL}/Transactions/GetTransactionStatus?orderTrackingId=${orderTrackingId}`,
+      `${PESAPAL_API_URL}/api/Transactions/GetTransactionStatus?orderTrackingId=${orderTrackingId}`,
       {
         method: "GET",
         headers: {
@@ -202,62 +258,29 @@ export async function getTransactionStatus(
     );
 
     const data: PesapalTransactionStatus = await response.json();
+
+    if (data.error) {
+      throw new Error(`Failed to get transaction status: ${data.error}`);
+    }
+
     return data;
-  } catch {
-    console.error("Failed to get transaction status from Pesapal");
-    return null;
+  } catch (error) {
+    throw new Error(`Failed to get transaction status from Pesapal: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
+
+// ============================================================
+// Helper Functions
+// ============================================================
 
 export function isPesapalReady(): boolean {
   return !!isPesapalConfigured;
 }
 
 export function isPesapalLive(): boolean {
-  return process.env.PESAPAL_MODE === "live";
+  return PESAPAL_ENV === "live";
 }
 
-export async function registerIPN(ipnUrl: string): Promise<string | null> {
-  // FIXED: Blueprint Issue B — IPN ID cached on globalThis singleton
-  if (_g.__pesapalCachedIpnId && _g.__pesapalCachedIpnUrl === ipnUrl) {
-    return _g.__pesapalCachedIpnId;
-  }
-
-  const token = await authenticate();
-  if (!token) return null;
-
-  // Mock mode: return a stable fake IPN ID
-  if (!isPesapalConfigured) {
-    _g.__pesapalCachedIpnId = "mock-ipn-id";
-    _g.__pesapalCachedIpnUrl = ipnUrl;
-    return _g.__pesapalCachedIpnId;
-  }
-
-  try {
-    const response = await fetch(`${PESAPAL_API_URL}/URLSetup/RegisterIPN`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        url: ipnUrl,
-        ipn_notification_type: "POST",
-      }),
-    });
-
-    const data = await response.json();
-    const ipnId = data.ipn_id || data.IPNId || null;
-
-    if (ipnId) {
-      _g.__pesapalCachedIpnId = ipnId;
-      _g.__pesapalCachedIpnUrl = ipnUrl;
-    }
-
-    return ipnId;
-  } catch {
-    console.error("Failed to register IPN with Pesapal");
-    return null;
-  }
+export function getPesapalEnv(): string {
+  return PESAPAL_ENV;
 }

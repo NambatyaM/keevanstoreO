@@ -1,179 +1,167 @@
 // ============================================================
 // GET /api/pesapal/callback — Pesapal payment callback redirect
 // ============================================================
+// 
+// Pesapal redirects the user here after payment with these query params:
+// - OrderTrackingId
+// - OrderMerchantReference
+// - OrderNotificationType (value will be "CALLBACKURL")
+//
+// This endpoint:
+// 1. Extracts OrderTrackingId and OrderMerchantReference from query
+// 2. Calls getTransactionStatus() to get the real payment status
+// 3. Updates the Supabase order record with the status
+// 4. Redirects user to order status page
+// ============================================================
+
 import { NextRequest, NextResponse } from "next/server";
-import {
-  isUsingMockData,
-  mockOrders,
-  mockProducts,
-  mockCreators,
-  getMockDownloadSessionByOrderId,
-} from "@/lib/mock-data";
 import { getTransactionStatus } from "@/lib/pesapal";
 import { createServiceRoleClient } from "@/lib/supabase/server";
-import type { OrderStatus } from "@/types";
 
 export async function GET(request: NextRequest) {
   try {
-    const orderTrackingId = request.nextUrl.searchParams.get(
-      "OrderTrackingId"
-    );
+    const orderTrackingId = request.nextUrl.searchParams.get("OrderTrackingId");
+    const orderMerchantReference = request.nextUrl.searchParams.get("OrderMerchantReference");
+    const orderNotificationType = request.nextUrl.searchParams.get("OrderNotificationType");
 
-    if (!orderTrackingId) {
-      // Redirect to cancel page if no tracking ID
+    if (!orderTrackingId || !orderMerchantReference) {
+      console.error("Missing callback parameters:", { orderTrackingId, orderMerchantReference });
       return NextResponse.redirect(
-        new URL("/payment/cancel?reason=no_tracking_id", process.env.NEXT_PUBLIC_APP_URL || request.url)
+        new URL("/payment/cancel?reason=missing_params", process.env.NEXT_PUBLIC_APP_URL || request.url)
       );
     }
 
-    if (isUsingMockData()) {
-      // Find the order by tracking ID
-      const order = mockOrders.find(
-        (o) => o.pesapalOrderTrackingId === orderTrackingId
-      );
-
-      if (!order) {
-        return NextResponse.redirect(
-          new URL("/payment/cancel?reason=order_not_found", process.env.NEXT_PUBLIC_APP_URL || request.url)
-        );
-      }
-
-      // Auto-complete the order in mock mode
-      const orderIndex = mockOrders.findIndex(
-        (o) => o.pesapalOrderTrackingId === orderTrackingId
-      );
-      if (orderIndex >= 0 && mockOrders[orderIndex].status === "pending") {
-        mockOrders[orderIndex] = {
-          ...mockOrders[orderIndex],
-          status: "completed" as OrderStatus,
-          pesapalTransactionId: `mock-txn-${Date.now()}`,
-          updatedAt: new Date().toISOString(),
-        };
-
-        // Update product sales
-        const prodIndex = mockProducts.findIndex(
-          (p) => p.id === mockOrders[orderIndex].productId
-        );
-        if (prodIndex >= 0) {
-          mockProducts[prodIndex].salesCount += 1;
-          if (mockProducts[prodIndex].type === "event") {
-            mockProducts[prodIndex].ticketsSold += 1;
-          }
-        }
-
-        // Update creator balance
-        const creatorIndex = mockCreators.findIndex(
-          (c) => c.id === mockOrders[orderIndex].creatorId
-        );
-        if (creatorIndex >= 0) {
-          mockCreators[creatorIndex].balance +=
-            mockOrders[orderIndex].creatorEarning;
-          mockCreators[creatorIndex].totalEarnings +=
-            mockOrders[orderIndex].creatorEarning;
-          mockCreators[creatorIndex].totalSales += 1;
-        }
-      }
-
-      // Find download session for digital products
-      const downloadSession = getMockDownloadSessionByOrderId(order.id);
-      const downloadTokenParam = downloadSession
-        ? `&downloadToken=${downloadSession.downloadToken}`
-        : order.downloadToken
-          ? `&downloadToken=${order.downloadToken}`
-          : "";
-
-      // Redirect to success page with download token
-      return NextResponse.redirect(
-        new URL(
-          `/payment/success?orderId=${order.id}&trackingId=${orderTrackingId}${downloadTokenParam}`,
-          process.env.NEXT_PUBLIC_APP_URL || request.url
-        )
-      );
-    }
-
-    // Real Pesapal flow
+    // Get transaction status from Pesapal
     const transactionStatus = await getTransactionStatus(orderTrackingId);
 
     if (!transactionStatus) {
+      console.error("Failed to get transaction status for:", orderTrackingId);
       return NextResponse.redirect(
         new URL("/payment/cancel?reason=status_check_failed", process.env.NEXT_PUBLIC_APP_URL || request.url)
       );
     }
 
-    // Find order by tracking ID from Supabase
-    const serviceClient = createServiceRoleClient();
-    if (!serviceClient) {
+    // Connect to Supabase
+    const supabase = createServiceRoleClient();
+    if (!supabase) {
+      console.error("Failed to connect to Supabase");
       return NextResponse.redirect(
         new URL("/payment/cancel?reason=service_unavailable", process.env.NEXT_PUBLIC_APP_URL || request.url)
       );
     }
 
-    const { data: orderRow } = await serviceClient
+    // Find order by merchant reference
+    const { data: orderRow, error: orderError } = await supabase
       .from("orders")
-      .select("id, status, download_token")
-      .eq("pesapal_order_tracking_id", orderTrackingId)
+      .select("id, status, product_id, creator_id")
+      .eq("merchant_reference", orderMerchantReference)
       .single();
 
-    if (!orderRow) {
+    if (orderError || !orderRow) {
+      console.error("Order not found for merchant reference:", orderMerchantReference);
       return NextResponse.redirect(
         new URL("/payment/cancel?reason=order_not_found", process.env.NEXT_PUBLIC_APP_URL || request.url)
       );
     }
 
     const orderId = orderRow.id as string;
+    const productId = orderRow.product_id as string;
+    const creatorId = orderRow.creator_id as string;
 
-    if (transactionStatus.payment_status === "COMPLETED") {
-      // The IPN handler should process the payment, but as a fallback
-      // we also process it here if the order is still pending
-      if (orderRow.status === "pending") {
-        // IPN will handle the full processing, but for the callback
-        // we just redirect the user. The IPN may arrive before or after.
-        // For safety, we don't duplicate the processing here.
-        console.log("Callback received for pending order, IPN should process:", orderId);
+    // Map Pesapal status to our status
+    const pesapalStatus = transactionStatus.payment_status_description || transactionStatus.payment_status;
+    let newStatus: string;
+
+    switch (pesapalStatus) {
+      case "COMPLETED":
+        newStatus = "completed";
+        break;
+      case "FAILED":
+      case "INVALID":
+      case "REVERSED":
+        newStatus = "failed";
+        break;
+      case "PENDING":
+        newStatus = "pending";
+        break;
+      default:
+        newStatus = "pending";
+    }
+
+    // Update order status in Supabase
+    const { error: updateError } = await supabase
+      .from("orders")
+      .update({
+        status: newStatus,
+        pesapal_transaction_id: transactionStatus.confirmation_code,
+        pesapal_payment_method: transactionStatus.payment_method,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", orderId);
+
+    if (updateError) {
+      console.error("Failed to update order status:", updateError);
+      // Continue anyway - we'll redirect the user
+    }
+
+    // If payment completed, trigger delivery logic
+    if (newStatus === "completed" && orderRow.status === "pending") {
+      // Update product sales count
+      await supabase
+        .from("products")
+        .update({
+          sales_count: (await supabase.from("products").select("sales_count").eq("id", productId).single()).data?.sales_count || 0 + 1,
+        })
+        .eq("id", productId);
+
+      // Update creator balance and earnings
+      const { data: orderData } = await supabase
+        .from("orders")
+        .select("creator_earning")
+        .eq("id", orderId)
+        .single();
+
+      if (orderData) {
+        await supabase
+          .from("creators")
+          .update({
+            balance: (await supabase.from("creators").select("balance").eq("id", creatorId).single()).data?.balance || 0 + Number(orderData.creator_earning),
+            total_earnings: (await supabase.from("creators").select("total_earnings").eq("id", creatorId).single()).data?.total_earnings || 0 + Number(orderData.creator_earning),
+            total_sales: (await supabase.from("creators").select("total_sales").eq("id", creatorId).single()).data?.total_sales || 0 + 1,
+          })
+          .eq("id", creatorId);
       }
 
-      // Find download session token for digital products
-      let downloadTokenParam = "";
-      if (orderRow.download_token) {
-        // Try to find a download session for this order
-        const { data: dlSession } = await serviceClient
+      // Create download session for digital products
+      const { data: productData } = await supabase
+        .from("products")
+        .select("type")
+        .eq("id", productId)
+        .single();
+
+      if (productData?.type === "digital") {
+        const downloadToken = crypto.randomUUID();
+        await supabase
           .from("download_sessions")
-          .select("download_token")
-          .eq("order_id", orderId)
-          .limit(1)
-          .single();
-
-        if (dlSession) {
-          downloadTokenParam = `&downloadToken=${dlSession.download_token}`;
-        } else {
-          downloadTokenParam = `&downloadToken=${orderRow.download_token}`;
-        }
+          .insert({
+            download_token: downloadToken,
+            product_id: productId,
+            order_id: orderId,
+            buyer_email: transactionStatus.description || "unknown",
+            max_downloads: 3,
+            download_count: 0,
+            expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days
+          });
       }
-
-      return NextResponse.redirect(
-        new URL(
-          `/payment/success?orderId=${orderId}&trackingId=${orderTrackingId}${downloadTokenParam}`,
-          process.env.NEXT_PUBLIC_APP_URL || request.url
-        )
-      );
     }
 
-    if (transactionStatus.payment_status === "PENDING") {
-      return NextResponse.redirect(
-        new URL(
-          `/payment/success?orderId=${orderId}&status=pending`,
-          process.env.NEXT_PUBLIC_APP_URL || request.url
-        )
-      );
-    }
-
-    // Payment FAILED or INVALID
-    const reason = transactionStatus.payment_status || "payment_failed";
-    return NextResponse.redirect(
-      new URL(`/payment/cancel?reason=${reason}`, process.env.NEXT_PUBLIC_APP_URL || request.url)
-    );
+    // Redirect user to order status page
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || request.url;
+    const redirectUrl = new URL(`/order-status?ref=${orderMerchantReference}`, baseUrl);
+    
+    return NextResponse.redirect(redirectUrl);
   } catch (error) {
-    console.error("Error in pesapal callback GET:", error instanceof Error ? error.message : String(error));
+    console.error("Error in pesapal callback:", error);
     return NextResponse.redirect(
       new URL("/payment/cancel?reason=server_error", process.env.NEXT_PUBLIC_APP_URL || request.url)
     );

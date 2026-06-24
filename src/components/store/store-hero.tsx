@@ -34,6 +34,9 @@ export function StoreHero({ creator }: StoreHeroProps) {
             src={creator.bannerUrl}
             alt={`${creator.displayName} banner`}
             className="w-full h-full object-cover"
+            onError={(e) => {
+              e.currentTarget.style.display = 'none';
+            }}
           />
         )}
         {/* Overlay pattern */}

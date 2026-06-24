@@ -38,15 +38,22 @@ function generateMockAnalytics(creatorId: string, range: string) {
   const orders = getMockOrders(creatorId);
   const products = getMockProducts(creatorId);
 
-  // Generate sales by day
+  // Generate sales by day - use actual order data instead of random
   const salesByDay: { date: string; sales: number; revenue: number; views: number }[] = [];
   for (let i = days - 1; i >= 0; i--) {
     const date = new Date(now);
     date.setDate(date.getDate() - i);
     const dateStr = date.toISOString().split("T")[0];
-    const sales = Math.floor(Math.random() * 8) + (days <= 7 ? 2 : 0);
-    const revenue = Math.floor(Math.random() * 150000) + 5000;
-    const views = Math.floor(Math.random() * 50) + 10;
+    
+    // Count orders for this day
+    const dayOrders = orders.filter(o => o.createdAt.startsWith(dateStr));
+    const sales = dayOrders.length;
+    const revenue = dayOrders.reduce((sum, o) => sum + o.creatorEarning, 0);
+    
+    // Get views for this day from page views
+    const pageViews = getMockPageViews(creatorId).filter(v => v.createdAt.startsWith(dateStr));
+    const views = pageViews.length;
+    
     salesByDay.push({ date: dateStr, sales, revenue, views });
   }
 
@@ -56,7 +63,7 @@ function generateMockAnalytics(creatorId: string, range: string) {
   const totalViews = salesByDay.reduce((sum, d) => sum + d.views, 0);
   const conversionRate = totalViews > 0 ? +((totalSales / totalViews) * 100).toFixed(1) : 0;
 
-  // Top products breakdown
+  // Top products breakdown - use actual product data
   const topProducts = products
     .filter((p) => p.status === "active")
     .map((p) => ({
@@ -68,10 +75,22 @@ function generateMockAnalytics(creatorId: string, range: string) {
     }))
     .sort((a, b) => b.revenue - a.revenue);
 
-  // Calculate changes (mock percentage changes)
-  const revenueChange = +(Math.random() * 30 - 5).toFixed(1);
-  const salesChange = +(Math.random() * 25 - 3).toFixed(1);
-  const viewsChange = +(Math.random() * 20 - 10).toFixed(1);
+  // Calculate changes from actual data (compare with previous period)
+  const midPoint = Math.floor(salesByDay.length / 2);
+  const currentPeriod = salesByDay.slice(midPoint);
+  const previousPeriod = salesByDay.slice(0, midPoint);
+  
+  const currentRevenue = currentPeriod.reduce((sum, d) => sum + d.revenue, 0);
+  const previousRevenue = previousPeriod.reduce((sum, d) => sum + d.revenue, 0);
+  const revenueChange = previousRevenue > 0 ? +(((currentRevenue - previousRevenue) / previousRevenue) * 100).toFixed(1) : 0;
+  
+  const currentSales = currentPeriod.reduce((sum, d) => sum + d.sales, 0);
+  const previousSales = previousPeriod.reduce((sum, d) => sum + d.sales, 0);
+  const salesChange = previousSales > 0 ? +(((currentSales - previousSales) / previousSales) * 100).toFixed(1) : 0;
+  
+  const currentViews = currentPeriod.reduce((sum, d) => sum + d.views, 0);
+  const previousViews = previousPeriod.reduce((sum, d) => sum + d.views, 0);
+  const viewsChange = previousViews > 0 ? +(((currentViews - previousViews) / previousViews) * 100).toFixed(1) : 0;
 
   return {
     totalRevenue,

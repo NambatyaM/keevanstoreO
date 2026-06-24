@@ -562,19 +562,37 @@ function generateMockPageViews(): PageView[] {
   const creatorIds = ["creator-1", "creator-2", "creator-3"];
   const pages = ["store", "product"];
 
-  for (let i = 0; i < 200; i++) {
-    const daysAgo = Math.floor(Math.random() * 30);
-    const date = new Date(now);
-    date.setDate(date.getDate() - daysAgo);
-    date.setHours(Math.floor(Math.random() * 24), Math.floor(Math.random() * 60));
-
-    views.push({
-      id: `pv-${i + 1}`,
-      creatorId: creatorIds[Math.floor(Math.random() * creatorIds.length)],
-      page: pages[Math.floor(Math.random() * pages.length)],
-      referrer: Math.random() > 0.5 ? "instagram.com" : Math.random() > 0.5 ? "twitter.com" : "direct",
-      createdAt: date.toISOString(),
-    });
+  // Generate page views based on actual creator view counts from mock data
+  for (const creatorId of creatorIds) {
+    const creator = mockCreators.find(c => c.id === creatorId);
+    if (!creator) continue;
+    
+    // Distribute the creator's total views across the last 30 days
+    const viewsPerDay = Math.ceil(creator.totalViews / 30);
+    
+    for (let day = 0; day < 30; day++) {
+      const date = new Date(now);
+      date.setDate(date.getDate() - day);
+      const dateStr = date.toISOString().split("T")[0];
+      
+      // Add some variation but keep it realistic
+      const dayVariation = Math.floor(Math.random() * 3) - 1; // -1, 0, or +1
+      const dayViews = Math.max(0, viewsPerDay + dayVariation);
+      
+      for (let i = 0; i < dayViews; i++) {
+        const hour = Math.floor(Math.random() * 24);
+        const minute = Math.floor(Math.random() * 60);
+        date.setHours(hour, minute);
+        
+        views.push({
+          id: `pv-${views.length + 1}`,
+          creatorId,
+          page: pages[Math.floor(Math.random() * pages.length)],
+          referrer: Math.random() > 0.5 ? "instagram.com" : Math.random() > 0.5 ? "twitter.com" : "direct",
+          createdAt: date.toISOString(),
+        });
+      }
+    }
   }
 
   return views.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
@@ -587,15 +605,21 @@ function generateSalesByDay(): { date: string; sales: number; revenue: number }[
   const data: { date: string; sales: number; revenue: number }[] = [];
   const now = new Date();
 
+  // Use actual order data instead of random generation
   for (let i = 29; i >= 0; i--) {
     const date = new Date(now);
     date.setDate(date.getDate() - i);
     const dateStr = date.toISOString().split("T")[0];
 
+    // Count orders for this day across all creators
+    const dayOrders = mockOrders.filter(o => o.createdAt.startsWith(dateStr));
+    const sales = dayOrders.length;
+    const revenue = dayOrders.reduce((sum, o) => sum + o.creatorEarning, 0);
+
     data.push({
       date: dateStr,
-      sales: Math.floor(Math.random() * 8),
-      revenue: Math.floor(Math.random() * 150000) + 5000,
+      sales,
+      revenue,
     });
   }
 
@@ -686,12 +710,18 @@ export function createMockDownloadSession(orderId: string, productId: string): D
 export function getMockDashboardStats(creatorId: string): DashboardStats {
   const creator = getMockCreatorById(creatorId);
   const orders = getMockOrders(creatorId);
+  const pageViews = getMockPageViews(creatorId);
+
+  // Calculate actual totals from orders and page views
+  const totalRevenue = orders.reduce((sum, o) => sum + o.creatorEarning, 0);
+  const totalSales = orders.length;
+  const totalViews = pageViews.length;
 
   return {
-    totalRevenue: creator?.totalEarnings ?? 0,
-    totalSales: creator?.totalSales ?? 0,
+    totalRevenue: creator?.totalEarnings ?? totalRevenue,
+    totalSales: creator?.totalSales ?? totalSales,
     balance: creator?.balance ?? 0,
-    totalViews: creator?.totalViews ?? 0,
+    totalViews: creator?.totalViews ?? totalViews,
     recentOrders: orders.slice(0, 5),
     salesByDay: generateSalesByDay(),
   };

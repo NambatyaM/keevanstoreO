@@ -49,16 +49,19 @@ export function ProductCard({
             src={product.thumbnailUrl}
             alt={product.title}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            onError={(e) => {
+              e.currentTarget.style.display = 'none';
+              e.currentTarget.nextElementSibling?.classList.remove('hidden');
+            }}
           />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/20 dark:to-teal-950/20">
-            {isEvent ? (
-              <Calendar className="h-12 w-12 text-emerald-300" />
-            ) : (
-              <ImageIcon className="h-12 w-12 text-emerald-300" />
-            )}
-          </div>
-        )}
+        ) : null}
+        <div className={`w-full h-full flex items-center justify-center bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950/20 dark:to-teal-950/20 ${product.thumbnailUrl ? 'hidden' : ''}`}>
+          {isEvent ? (
+            <Calendar className="h-12 w-12 text-emerald-300" />
+          ) : (
+            <ImageIcon className="h-12 w-12 text-emerald-300" />
+          )}
+        </div>
 
         {/* Type Badge */}
         <Badge

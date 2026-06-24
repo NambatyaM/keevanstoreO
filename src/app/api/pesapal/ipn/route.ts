@@ -1,304 +1,210 @@
 // ============================================================
-// POST /api/pesapal/ipn — Pesapal IPN webhook handler
+// GET/POST /api/pesapal/ipn — Pesapal IPN webhook handler
 // ============================================================
-import { NextRequest, NextResponse } from "next/server";
-import { isUsingMockData } from "@/lib/mock-data";
-import { createServiceRoleClient } from "@/lib/supabase/server";
-import { getTransactionStatus } from "@/lib/pesapal";
+// 
+// Pesapal hits this endpoint in the background whenever payment status changes.
+// It may send either GET or POST requests with:
+// - OrderTrackingId
+// - OrderMerchantReference
+// - OrderNotificationType (value will be "IPNCHANGE")
+//
+// This endpoint:
+// 1. Extracts OrderTrackingId and OrderMerchantReference (query for GET, body for POST)
+// 2. Calls getTransactionStatus() to get the real payment status
+// 3. Finds the matching order by merchant_reference
+// 4. Updates the order status accordingly
+// 5. If COMPLETED and was PENDING, triggers delivery
+// 6. Logs the IPN event to pesapal_ipn_logs table
+// 7. Returns 200 OK (Pesapal expects this, otherwise it will retry)
+// ============================================================
 
+import { NextRequest, NextResponse } from "next/server";
+import { getTransactionStatus } from "@/lib/pesapal";
+import { createServiceRoleClient } from "@/lib/supabase/server";
+
+async function processIPN(
+  orderTrackingId: string,
+  orderMerchantReference: string,
+  orderNotificationType: string
+): Promise<NextResponse> {
+  console.log("Pesapal IPN received:", {
+    orderTrackingId,
+    orderMerchantReference,
+    orderNotificationType,
+  });
+
+  const supabase = createServiceRoleClient();
+  if (!supabase) {
+    console.error("Failed to connect to Supabase for IPN processing");
+    return NextResponse.json(
+      { success: false, error: "Service unavailable" },
+      { status: 500 }
+    );
+  }
+
+  // Find order by merchant reference
+  const { data: orderRow, error: orderError } = await supabase
+    .from("orders")
+    .select("id, status, product_id, creator_id, amount, creator_earning")
+    .eq("merchant_reference", orderMerchantReference)
+    .single();
+
+  if (orderError || !orderRow) {
+    console.error("Order not found for merchant reference:", orderMerchantReference);
+    // Log the IPN event even if order not found
+    await supabase.from("pesapal_ipn_logs").insert({
+      order_tracking_id: orderTrackingId,
+      merchant_reference: orderMerchantReference,
+      raw_status: "ORDER_NOT_FOUND",
+      received_at: new Date().toISOString(),
+    });
+    // Return 200 to acknowledge receipt
+    return NextResponse.json({ success: true, message: "IPN received" });
+  }
+
+  const orderId = orderRow.id as string;
+  const productId = orderRow.product_id as string;
+  const creatorId = orderRow.creator_id as string;
+
+  // Idempotency check: if order is already completed, skip processing
+  if (orderRow.status === "completed") {
+    console.log("Order already completed, skipping IPN processing:", orderId);
+    await supabase.from("pesapal_ipn_logs").insert({
+      order_tracking_id: orderTrackingId,
+      merchant_reference: orderMerchantReference,
+      raw_status: "ALREADY_COMPLETED",
+      received_at: new Date().toISOString(),
+    });
+    return NextResponse.json({ success: true, message: "IPN received, order already processed" });
+  }
+
+  // Get transaction status from Pesapal
+  const transactionStatus = await getTransactionStatus(orderTrackingId);
+
+  if (!transactionStatus) {
+    console.error("Failed to get transaction status for:", orderTrackingId);
+    // Log the failure
+    await supabase.from("pesapal_ipn_logs").insert({
+      order_tracking_id: orderTrackingId,
+      merchant_reference: orderMerchantReference,
+      raw_status: "STATUS_CHECK_FAILED",
+      received_at: new Date().toISOString(),
+    });
+    // Return 500 to trigger Pesapal retry
+    return NextResponse.json(
+      { success: false, error: "Failed to verify payment status" },
+      { status: 500 }
+    );
+  }
+
+  // Map Pesapal status to our status
+  const pesapalStatus = transactionStatus.payment_status_description || transactionStatus.payment_status;
+  let newStatus: string;
+
+  switch (pesapalStatus) {
+    case "COMPLETED":
+      newStatus = "completed";
+      break;
+    case "FAILED":
+    case "INVALID":
+    case "REVERSED":
+      newStatus = "failed";
+      break;
+    case "PENDING":
+      newStatus = "pending";
+      break;
+    default:
+      newStatus = "pending";
+  }
+
+  // Update order status in Supabase
+  const { error: updateError } = await supabase
+    .from("orders")
+    .update({
+      status: newStatus,
+      pesapal_transaction_id: transactionStatus.confirmation_code,
+      pesapal_payment_method: transactionStatus.payment_method,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", orderId);
+
+  if (updateError) {
+    console.error("Failed to update order status:", updateError);
+  }
+
+  // Log the IPN event
+  await supabase.from("pesapal_ipn_logs").insert({
+    order_tracking_id: orderTrackingId,
+    merchant_reference: orderMerchantReference,
+    raw_status: pesapalStatus,
+    received_at: new Date().toISOString(),
+  });
+
+  // If payment completed and was previously pending, trigger delivery logic
+  if (newStatus === "completed" && orderRow.status === "pending") {
+    // Update product sales count
+    await supabase
+      .from("products")
+      .update({
+        sales_count: (await supabase.from("products").select("sales_count").eq("id", productId).single()).data?.sales_count || 0 + 1,
+      })
+      .eq("id", productId);
+
+    // Update creator balance and earnings
+    const creatorEarning = Number(orderRow.creator_earning);
+    await supabase
+      .from("creators")
+      .update({
+        balance: (await supabase.from("creators").select("balance").eq("id", creatorId).single()).data?.balance || 0 + creatorEarning,
+        total_earnings: (await supabase.from("creators").select("total_earnings").eq("id", creatorId).single()).data?.total_earnings || 0 + creatorEarning,
+        total_sales: (await supabase.from("creators").select("total_sales").eq("id", creatorId).single()).data?.total_sales || 0 + 1,
+      })
+      .eq("id", creatorId);
+
+    // Create download session for digital products
+    const { data: productData } = await supabase
+      .from("products")
+      .select("type")
+      .eq("id", productId)
+      .single();
+
+    if (productData?.type === "digital") {
+      const downloadToken = crypto.randomUUID();
+      await supabase
+        .from("download_sessions")
+        .insert({
+          download_token: downloadToken,
+          product_id: productId,
+          order_id: orderId,
+          buyer_email: transactionStatus.description || "unknown",
+          max_downloads: 3,
+          download_count: 0,
+          expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days
+        });
+    }
+
+    console.log("Payment completed and delivery triggered for order:", orderId);
+  }
+
+  return NextResponse.json({ success: true, message: "IPN processed" });
+}
+
+// Handle POST requests
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    let { OrderTrackingId, OrderNotificationType, OrderMerchantReference } = body;
+    const { OrderTrackingId, OrderMerchantReference, OrderNotificationType } = body;
 
-    // Pesapal may send OrderTrackingId in query params in some configurations
-    if (!OrderTrackingId) {
-      OrderTrackingId = request.nextUrl.searchParams.get("OrderTrackingId") || undefined;
-    }
-    if (!OrderMerchantReference) {
-      OrderMerchantReference = request.nextUrl.searchParams.get("OrderMerchantReference") || undefined;
-    }
-
-    console.log("Pesapal IPN received:", {
-      OrderTrackingId,
-      OrderNotificationType,
-      OrderMerchantReference,
-    });
-
-    if (isUsingMockData()) {
-      // In mock mode, just acknowledge
-      return NextResponse.json({
-        success: true,
-        message: "IPN received (mock mode)",
-      });
-    }
-
-    // Real Pesapal IPN handling
-    // Require at least one of: OrderTrackingId or OrderMerchantReference
-    if (!OrderTrackingId && !OrderMerchantReference) {
+    if (!OrderTrackingId || !OrderMerchantReference) {
       return NextResponse.json(
-        { success: false, error: "Missing OrderTrackingId and OrderMerchantReference" },
+        { success: false, error: "Missing OrderTrackingId or OrderMerchantReference" },
         { status: 400 }
       );
     }
 
-    const serviceClient = createServiceRoleClient();
-    if (!serviceClient) {
-      console.error("Service role client not available for IPN processing");
-      return NextResponse.json(
-        { success: false, error: "Service unavailable" },
-        { status: 500 }
-      );
-    }
-
-    // Find the order — prefer OrderTrackingId, fall back to OrderMerchantReference (order ID)
-    let orderRow: Record<string, unknown> | null = null;
-    let orderError: unknown = null;
-
-    if (OrderTrackingId) {
-      const result = await serviceClient
-        .from("orders")
-        .select("*")
-        .eq("pesapal_order_tracking_id", OrderTrackingId)
-        .single();
-      orderRow = result.data;
-      orderError = result.error;
-    }
-
-    // Fallback: look up by order ID (OrderMerchantReference = the orderId we sent to Pesapal)
-    if ((!orderRow || orderError) && OrderMerchantReference) {
-      const result = await serviceClient
-        .from("orders")
-        .select("*")
-        .eq("id", OrderMerchantReference)
-        .single();
-      orderRow = result.data;
-      orderError = result.error;
-    }
-
-    if (orderError || !orderRow) {
-      console.error("Order not found for tracking ID:", OrderTrackingId, "/ reference:", OrderMerchantReference);
-      // Still return 200 to acknowledge receipt
-      return NextResponse.json({
-        success: true,
-        message: "IPN received but order not found",
-      });
-    }
-
-    // Idempotency check: if order is already completed, skip processing
-    if ((orderRow as Record<string, unknown>).status === "completed") {
-      console.log("Order already completed, skipping:", orderRow.id);
-      return NextResponse.json({
-        success: true,
-        message: "IPN received, order already processed",
-      });
-    }
-
-    // Get the actual transaction status from Pesapal
-    // Use the tracking ID from the IPN body, or fall back to the one stored on the order
-    const trackingIdForStatus = OrderTrackingId || (orderRow.pesapal_order_tracking_id as string | null);
-
-    if (!trackingIdForStatus) {
-      console.error("No tracking ID available to verify payment status for order:", orderRow.id);
-      return NextResponse.json(
-        { success: false, error: "Cannot verify payment status without tracking ID, will retry" },
-        { status: 500 }
-      );
-    }
-
-    const transactionStatus = await getTransactionStatus(trackingIdForStatus);
-
-    if (!transactionStatus) {
-      console.error("Failed to get transaction status for:", trackingIdForStatus, "— returning 500 to trigger Pesapal retry");
-      // Return 500 so Pesapal retries the IPN notification
-      return NextResponse.json(
-        { success: false, error: "Failed to verify payment status, will retry" },
-        { status: 500 }
-      );
-    }
-
-    if (transactionStatus.payment_status === "COMPLETED") {
-      // FIXED: Use ledger-based RPC functions for production-grade financial tracking
-      // Handle donations separately - if product_id is null, this is a donation
-      if (!orderRow.product_id) {
-        // This is a donation - use the ledger-based process_donation_ledger RPC
-        const { error: donationRpcError } = await serviceClient.rpc("process_donation_ledger", {
-          p_order_id: orderRow.id,
-          p_pesapal_transaction_id: transactionStatus.confirmation_code || "",
-        });
-
-        if (donationRpcError) {
-          console.error("process_donation_ledger RPC failed:", donationRpcError.message);
-          // Return 500 to trigger Pesapal retry
-          return NextResponse.json(
-            { success: false, error: "Donation processing failed, will retry" },
-            { status: 500 }
-          );
-        }
-      } else {
-        // This is a product purchase - use the ledger-based process_completed_payment_ledger RPC function
-        // This atomically creates ledger entries for: SALE_COMPLETED, COMMISSION_DEDUCTED, CREATOR_EARNING_CREDITED
-        // preventing TOCTOU race conditions from concurrent IPN callbacks
-        const { error: rpcError } = await serviceClient.rpc("process_completed_payment_ledger", {
-          p_order_id: orderRow.id,
-          p_pesapal_transaction_id: transactionStatus.confirmation_code || "",
-        });
-
-        if (rpcError) {
-          console.error("process_completed_payment_ledger RPC failed:", rpcError.message);
-          // Only swallow idempotency errors (order already completed)
-          // For all other errors, return 500 to trigger Pesapal retry
-          if (!rpcError.message.includes("already completed") && !rpcError.message.includes("already processed")) {
-            return NextResponse.json(
-              { success: false, error: "Payment processing failed, will retry" },
-              { status: 500 }
-            );
-          }
-        }
-      }
-
-      const productId = orderRow.product_id;
-
-      // FIXED: Handle donations that are part of product purchases using ledger
-      // Check if there's a donation record linked to this order
-      if (productId) {
-        const { data: donationRecord } = await serviceClient
-          .from("donations")
-          .select("amount")
-          .eq("order_id", orderRow.id)
-          .maybeSingle();
-
-        if (donationRecord) {
-          // Create ledger entry for donation portion of purchase
-          // Donations have no platform fee, so full amount goes to creator
-          const { error: donationLedgerError } = await serviceClient.rpc("create_ledger_entry", {
-            p_creator_id: orderRow.creator_id,
-            p_transaction_type: "DONATION_RECEIVED",
-            p_amount: donationRecord.amount,
-            p_reference_id: orderRow.id,
-            p_reference_type: "order",
-            p_description: "Donation with product purchase from " + orderRow.buyer_email,
-            p_metadata: {
-              order_id: orderRow.id,
-              donation_amount: donationRecord.amount,
-              donor_email: orderRow.buyer_email
-            }
-          });
-          
-          if (donationLedgerError) {
-            console.error("Failed to create donation ledger entry:", donationLedgerError.message);
-          }
-          
-          // Update donation_current on creators table for display purposes
-          const { error: donationUpdateError } = await serviceClient
-            .from("creators")
-            .update({
-              donation_current: (orderRow.donation_current || 0) + donationRecord.amount,
-            })
-            .eq("id", orderRow.creator_id);
-            
-          if (donationUpdateError) {
-            console.error("Failed to increment donation_current:", donationUpdateError.message);
-          }
-        }
-
-        // For digital products: create download session if not already created
-        // Check the download_sessions table, not the download_token field on the order
-        // (download_token is pre-assigned at order creation, but the session is only created after payment)
-        const { data: productTypeData } = await serviceClient
-          .from("products")
-          .select("type")
-          .eq("id", productId)
-          .single();
-
-        if (productTypeData?.type === "digital") {
-          // Check if a download session already exists (idempotency)
-          const { data: existingSession } = await serviceClient
-            .from("download_sessions")
-            .select("id")
-            .eq("order_id", orderRow.id)
-            .maybeSingle();
-
-          if (!existingSession) {
-            // Use the pre-assigned download_token from the order, or generate a new one
-            const downloadToken = orderRow.download_token || `dl-${crypto.randomUUID()}`;
-
-            // Ensure the order has a download_token stored
-            if (!orderRow.download_token) {
-              await serviceClient
-                .from("orders")
-                .update({ download_token: downloadToken })
-                .eq("id", orderRow.id);
-            }
-
-            // Create the download session
-            await serviceClient
-              .from("download_sessions")
-              .insert({
-                order_id: orderRow.id,
-                product_id: productId,
-                download_token: downloadToken,
-                expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-                max_downloads: 5,
-              });
-          }
-        }
-
-        // For events: create a ticket record if not already created
-        if (productTypeData?.type === "event") {
-          // Check if a ticket already exists for this order (idempotency)
-          const { data: existingTicket } = await serviceClient
-            .from("tickets")
-            .select("id")
-            .eq("order_id", orderRow.id)
-            .maybeSingle();
-
-          if (!existingTicket) {
-            const { data: eventData } = await serviceClient
-              .from("events")
-              .select("id")
-              .eq("product_id", productId)
-              .single();
-
-            if (eventData) {
-              await serviceClient.from("tickets").insert({
-                order_id: orderRow.id,
-                event_id: eventData.id,
-                buyer_email: orderRow.buyer_email,
-                buyer_name: orderRow.buyer_name,
-                qr_code_data: `QR-${orderRow.id}`,
-              });
-            } else {
-              console.error("Event not found for product ID:", productId, "— ticket not created");
-            }
-          }
-        }
-      }
-
-      console.log("Payment completed for order:", orderRow.id);
-    } else if (transactionStatus.payment_status === "FAILED") {
-      // Update order status to failed
-      await serviceClient
-        .from("orders")
-        .update({
-          status: "failed",
-        })
-        .eq("id", orderRow.id);
-
-      console.log("Payment failed for order:", orderRow.id);
-    }
-    // For PENDING or other statuses, do nothing — wait for another IPN
-
-    // Return the expected Pesapal IPN response format
-    return NextResponse.json({
-      success: true,
-      message: "IPN received",
-      orderTrackingId: OrderTrackingId,
-      orderNotificationType: OrderNotificationType,
-      orderMerchantReference: OrderMerchantReference,
-    });
+    return await processIPN(OrderTrackingId, OrderMerchantReference, OrderNotificationType || "IPNCHANGE");
   } catch (error) {
-    console.error("Error processing Pesapal IPN:", error instanceof Error ? error.message : String(error));
+    console.error("Error processing Pesapal IPN POST:", error);
     return NextResponse.json(
       { success: false, error: "Internal server error" },
       { status: 500 }
@@ -306,19 +212,26 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Pesapal also sends GET requests for IPN registration confirmation
+// Handle GET requests
 export async function GET(request: NextRequest) {
-  const orderTrackingId = request.nextUrl.searchParams.get("OrderTrackingId");
-  const orderMerchantReference = request.nextUrl.searchParams.get("OrderMerchantReference");
+  try {
+    const orderTrackingId = request.nextUrl.searchParams.get("OrderTrackingId");
+    const orderMerchantReference = request.nextUrl.searchParams.get("OrderMerchantReference");
+    const orderNotificationType = request.nextUrl.searchParams.get("OrderNotificationType");
 
-  console.log("Pesapal IPN GET confirmation:", {
-    orderTrackingId,
-    orderMerchantReference,
-  });
+    if (!orderTrackingId || !orderMerchantReference) {
+      return NextResponse.json(
+        { success: false, error: "Missing OrderTrackingId or OrderMerchantReference" },
+        { status: 400 }
+      );
+    }
 
-  return NextResponse.json({
-    success: true,
-    orderTrackingId,
-    orderMerchantReference,
-  });
+    return await processIPN(orderTrackingId, orderMerchantReference, orderNotificationType || "IPNCHANGE");
+  } catch (error) {
+    console.error("Error processing Pesapal IPN GET:", error);
+    return NextResponse.json(
+      { success: false, error: "Internal server error" },
+      { status: 500 }
+    );
+  }
 }
