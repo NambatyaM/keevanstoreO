@@ -1,0 +1,5 @@
+<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 60'>
+    <path d='M20 15 L40 30 L35 30 L35 50 L5 50 L5 30 L0 30 Z' fill='#00854a'/>
+    <path d='M20 22 Q26 30 23 36 Q26 33 29 36 Q26 28 20 22 Z' fill='white'/>
+    <text x='48' y='38' font-family='system-ui,sans-serif' font-size='20' font-weight='900' fill='#111827'>Keevan Store</text>
+  </svg>

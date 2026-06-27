@@ -5,6 +5,7 @@ import { ButtonLink } from "@/components/button";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { formatUgx, site } from "@/lib/constants";
+import { heroBlur } from "@/lib/hero-blur";
 
 const faqSchema = {
   "@context": "https://schema.org",
@@ -76,10 +77,12 @@ export default function Home() {
             </div>
             <div className="relative min-h-[520px] overflow-hidden rounded-lg bg-neutral-950 text-white">
               <Image
-                src="/hero.jpg"
+                src="/hero.webp"
                 alt="East African creators and authors collaborating on digital content"
                 fill
                 priority
+                placeholder="blur"
+                blurDataURL={heroBlur}
                 className="object-cover opacity-45"
               />
               <div className="absolute inset-x-6 bottom-6 rounded-lg bg-white p-5 text-brand-black shadow-soft">

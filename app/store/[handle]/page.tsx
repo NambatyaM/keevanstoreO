@@ -102,13 +102,13 @@ export default async function StorePage({ params }: { params: Promise<{ handle: 
           {store.products.length ? (
             <div className="mt-6 grid gap-5 md:grid-cols-2">
               {store.products.map((product) => {
-                const coverUrl = getCoverUrl(product.coverPath);
+                const coverUrl = getCoverUrl(product.coverPath, 320);
                 return (
                 <Link key={product.id} href={`/product/${product.slug}`} className="group rounded-lg border border-neutral-200 bg-white p-4 transition hover:shadow-soft">
                   <div className="grid gap-4 sm:grid-cols-[160px_1fr]">
                     <div className="relative grid aspect-[4/3] place-items-center overflow-hidden rounded-md bg-neutral-100 px-4 text-center text-sm font-semibold text-neutral-500">
                       {coverUrl ? (
-                        <Image src={coverUrl} alt={product.title} fill className="object-cover" sizes="160px" />
+                        <Image src={coverUrl} alt={product.title} fill className="object-cover" sizes="160px" loading="lazy" />
                       ) : (
                         "Digital product"
                       )}

@@ -117,7 +117,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
         </nav>
         <div className="relative grid aspect-[4/5] place-items-center overflow-hidden rounded-lg bg-neutral-100 p-6 text-center">
           {getCoverUrl(product.coverPath) ? (
-            <Image src={getCoverUrl(product.coverPath)!} alt={product.title} fill className="object-cover" sizes="(max-width: 768px) 100vw, 50vw" />
+            <Image src={getCoverUrl(product.coverPath, 600)!} alt={product.title} fill className="object-cover" sizes="(max-width: 768px) 100vw, 50vw" loading="lazy" />
           ) : (
             <div>
               <p className="text-sm font-bold uppercase tracking-[0.18em] text-brand-green">Digital Product</p>

@@ -1,11 +1,14 @@
 import { getOptionalSupabaseAdminClient } from "@/lib/supabase";
 
-export function getCoverUrl(coverPath: string | null): string | null {
+export function getCoverUrl(coverPath: string | null, width?: number): string | null {
   if (!coverPath) return null;
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   if (!supabaseUrl) return null;
   const bucket = "products";
-  return `${supabaseUrl}/storage/v1/object/public/${bucket}/${coverPath}`;
+  const base = `${supabaseUrl}/storage/v1/render/image/public/${bucket}/${coverPath}`;
+  const params = new URLSearchParams({ format: "webp" });
+  if (width) params.set("width", String(width));
+  return `${base}?${params.toString()}`;
 }
 
 export type StorefrontProduct = {

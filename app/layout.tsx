@@ -42,12 +42,15 @@ export const metadata: Metadata = {
   }
 };
 
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+const supabaseOrigin = supabaseUrl ? new URL(supabaseUrl).origin : "";
+
 const organizationSchema = {
   "@context": "https://schema.org",
   "@type": "Organization",
   name: site.name,
   url: site.url,
-  logo: `${site.url}/logo.png`,
+  logo: `${site.url}/logo.svg`,
   sameAs: [
     site.supportWhatsApp
   ],
@@ -71,6 +74,14 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="en">
       <head>
         <link rel="canonical" href={site.url} />
+        <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+        <meta name="theme-color" content="#00854a" />
+        {supabaseOrigin && (
+          <>
+            <link rel="preconnect" href={supabaseOrigin} />
+            <link rel="dns-prefetch" href={supabaseOrigin} />
+          </>
+        )}
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }}
