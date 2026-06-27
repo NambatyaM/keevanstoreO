@@ -45,7 +45,7 @@ create table if not exists public.discounts (
 );
 
 create index if not exists idx_discounts_active on public.discounts(product_id, is_active, expires_at)
-  where is_active = true and expires_at > now();
+  where is_active = true;
 
 -- Cart for logged-in buyers
 create table if not exists public.cart_items (
@@ -70,7 +70,8 @@ create table if not exists public.buyer_purchases (
   order_id uuid not null references public.orders(id) on delete cascade,
   product_id uuid not null references public.products(id) on delete restrict,
   creator_id uuid not null references public.creators(id) on delete restrict,
-  store_id uuid not null references public.stores(id) on delete restrict
+  store_id uuid not null references public.stores(id) on delete restrict,
+  created_at timestamptz not null default now()
 );
 
 create unique index if not exists idx_buyer_purchases_unique on public.buyer_purchases(buyer_id, product_id);
