@@ -6,6 +6,7 @@ export const adminNav = [
   { href: "/admin/refunds", label: "Refunds" },
   { href: "/admin/withdrawals", label: "Withdrawals" },
   { href: "/admin/reports", label: "Reports" },
+  { href: "/admin/emails", label: "Emails" },
   { href: "/admin/audit-log", label: "Audit Log" },
   { href: "/admin/settings", label: "Settings" }
 ];

@@ -8,9 +8,9 @@ export const POST = withErrorHandling(async (request: NextRequest, context?: unk
   const { id } = await params;
   const { supabase, authUser } = await requireAdmin(request);
   const { data, error } = await supabase.rpc("transition_withdrawal_request", {
-    request_id: id,
-    next_status: "rejected",
-    notes: input.notes ?? null
+    withdrawal_id: id,
+    new_status: "rejected",
+    admin_note: input.notes ?? null
   });
   if (error) return apiError(error.message, 400);
   await logAdminAction({ adminUserId: authUser.id, action: "withdrawal.reject", targetTable: "withdrawal_requests", targetId: id });

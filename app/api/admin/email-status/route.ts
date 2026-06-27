@@ -1,0 +1,25 @@
+import { NextRequest } from "next/server";
+import { json, requireAdmin, withErrorHandling } from "@/lib/api";
+
+export const GET = withErrorHandling(async (request: NextRequest) => {
+  const { supabase } = await requireAdmin(request);
+
+  const smtpConfigured = !!(process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS);
+  const cronConfigured = !!process.env.CRON_SECRET;
+
+  const [{ count: pending }, { count: sent }, { count: failed }] = await Promise.all([
+    supabase.from("email_queue").select("*", { count: "exact", head: true }).eq("status", "pending"),
+    supabase.from("email_queue").select("*", { count: "exact", head: true }).eq("status", "sent"),
+    supabase.from("email_queue").select("*", { count: "exact", head: true }).eq("status", "failed"),
+  ]);
+
+  return json({
+    smtp_configured: smtpConfigured,
+    cron_configured: cronConfigured,
+    queue_counts: {
+      pending: pending ?? 0,
+      sent: sent ?? 0,
+      failed: failed ?? 0,
+    },
+  });
+});

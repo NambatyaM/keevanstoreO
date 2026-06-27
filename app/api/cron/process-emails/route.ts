@@ -1,9 +1,28 @@
 import { NextRequest } from "next/server";
-import { json, logAdminAction, requireAdmin, withErrorHandling } from "@/lib/api";
+import { json, withErrorHandling } from "@/lib/api";
+import { getSupabaseAdminClient } from "@/lib/supabase";
 import { type QueueItem, renderAndSend } from "@/lib/email-processor";
 
-export const POST = withErrorHandling(async (request: NextRequest) => {
-  const { supabase, authUser } = await requireAdmin(request);
+async function authorizeCron(request: NextRequest): Promise<void> {
+  const secret = process.env.CRON_SECRET;
+  if (!secret) {
+    throw Object.assign(new Error("CRON_SECRET not configured"), { status: 500 });
+  }
+
+  const authHeader = request.headers.get("authorization");
+  const headerSecret = request.headers.get("x-vercel-cron-secret");
+
+  if (authHeader === `Bearer ${secret}` || headerSecret === secret) {
+    return;
+  }
+
+  throw Object.assign(new Error("Unauthorized"), { status: 401 });
+}
+
+async function processEmails(request: NextRequest): Promise<Response> {
+  await authorizeCron(request);
+
+  const supabase = getSupabaseAdminClient();
 
   const url = new URL(request.url);
   const limit = Math.min(Number(url.searchParams.get("limit")) || 50, 100);
@@ -67,14 +86,8 @@ export const POST = withErrorHandling(async (request: NextRequest) => {
     }
   }
 
-  await logAdminAction({
-    adminUserId: authUser.id,
-    action: "email.process",
-    targetTable: "email_queue",
-    metadata: { processed, failed, total: queueItems.length },
-  });
-
   return json({ ok: true, processed, failed, total: queueItems.length });
-});
+}
 
-
+export const GET = withErrorHandling(processEmails);
+export const POST = withErrorHandling(processEmails);
