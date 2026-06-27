@@ -152,10 +152,16 @@ BEGIN
 END;
 $$;
 
-DROP TRIGGER IF EXISTS trg_enqueue_refund_status ON public.refunds;
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_class WHERE relname = 'refunds' AND relnamespace = 'public'::regnamespace) THEN
+    DROP TRIGGER IF EXISTS trg_enqueue_refund_status ON public.refunds;
 
-CREATE TRIGGER trg_enqueue_refund_status
-  AFTER UPDATE OF status ON public.refunds
-  FOR EACH ROW
-  WHEN (OLD.status IS DISTINCT FROM NEW.status AND NEW.status IN ('approved', 'rejected'))
-  EXECUTE FUNCTION public.enqueue_refund_status_email();
+    CREATE TRIGGER trg_enqueue_refund_status
+      AFTER UPDATE OF status ON public.refunds
+      FOR EACH ROW
+      WHEN (OLD.status IS DISTINCT FROM NEW.status AND NEW.status IN ('approved', 'rejected'))
+      EXECUTE FUNCTION public.enqueue_refund_status_email();
+  END IF;
+END;
+$$;

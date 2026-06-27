@@ -11,6 +11,25 @@
 -- 9. Fix notify_refund_status_change() — also notify on rejection
 -- 10. Fix cleanup_expired_rate_limits() — add auth
 
+-- Drop functions whose signatures changed so they can be recreated
+DROP FUNCTION IF EXISTS public.finalize_pesapal_payment CASCADE;
+DROP FUNCTION IF EXISTS public.fail_pesapal_payment CASCADE;
+DROP FUNCTION IF EXISTS public.reserve_withdrawal CASCADE;
+DROP FUNCTION IF EXISTS public.transition_withdrawal_request CASCADE;
+DROP FUNCTION IF EXISTS public.rate_limit_check_and_increment CASCADE;
+DROP FUNCTION IF EXISTS public.cleanup_expired_rate_limits CASCADE;
+
+-- Ensure set_updated_at() exists (from 004, which was repaired as applied but may not exist)
+CREATE OR REPLACE FUNCTION public.set_updated_at()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  new.updated_at = now();
+  return new;
+END;
+$$;
+
 -- ============================================================
 -- PART 1: Fix increment_creator_balance()
 -- ============================================================
@@ -72,22 +91,21 @@ SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
-  v_creator_id uuid;
   v_creator_row public.creators;
-  v_store_row public.stores;
+  v_store_row public.stores%ROWTYPE;
   v_created_request public.withdrawal_requests;
 BEGIN
-  SELECT id, available_balance INTO v_creator_id, v_creator_row
+  SELECT * INTO v_creator_row
   FROM public.creators WHERE user_id = auth.uid();
 
-  IF v_creator_id IS NULL THEN
+  IF NOT FOUND THEN
     RAISE EXCEPTION 'Creator profile not found for authenticated user';
   END IF;
 
-  SELECT status INTO v_store_row
-  FROM public.stores WHERE creator_id = v_creator_id;
+  SELECT * INTO v_store_row
+  FROM public.stores WHERE creator_id = v_creator_row.id;
 
-  IF v_store_row.status = 'suspended' THEN
+  IF FOUND AND v_store_row.status = 'suspended' THEN
     RAISE EXCEPTION 'Store is suspended — withdrawals are not available';
   END IF;
 
@@ -96,13 +114,13 @@ BEGIN
   END IF;
 
   INSERT INTO public.withdrawal_requests (creator_id, amount, payout_method, payout_details)
-  VALUES (v_creator_id, p_amount, p_payout_method, p_payout_details)
+  VALUES (v_creator_row.id, p_amount, p_payout_method, p_payout_details)
   RETURNING * INTO v_created_request;
 
   UPDATE public.creators
   SET available_balance = available_balance - p_amount,
       updated_at = now()
-  WHERE id = v_creator_id;
+  WHERE id = v_creator_row.id;
 
   RETURN v_created_request;
 END;
@@ -111,6 +129,8 @@ $$;
 -- ============================================================
 -- PART 4: Fix finalize_pesapal_payment() — use is_admin() auth
 -- ============================================================
+
+DROP FUNCTION IF EXISTS public.finalize_pesapal_payment CASCADE;
 
 CREATE OR REPLACE FUNCTION public.finalize_pesapal_payment(
   payment_reference text,
@@ -129,17 +149,17 @@ SET search_path = public
 AS $$
 DECLARE
   v_payment public.payments;
-  v_order public.orders;
+  v_order_amount bigint;
+  v_order_product_id uuid;
+  v_order_creator_id uuid;
   v_download public.downloads;
-  v_config record;
+  v_commission_rate numeric;
 BEGIN
   IF NOT public.is_admin() AND current_setting('app.api_key', true) <> 'verified' THEN
     RAISE EXCEPTION 'Only admins or internal processes can finalize payments';
   END IF;
 
-  SELECT p.*, o.status AS order_status,
-         o.product_id AS ord_product_id, o.creator_id AS ord_creator_id
-  INTO v_payment, v_order
+  SELECT p.* INTO v_payment
   FROM public.payments p
   JOIN public.orders o ON o.id = p.order_id
   WHERE p.merchant_reference = payment_reference
@@ -149,18 +169,23 @@ BEGIN
     RAISE EXCEPTION 'Payment not found for reference: %', payment_reference;
   END IF;
 
+  SELECT o.amount, o.product_id, o.creator_id
+  INTO v_order_amount, v_order_product_id, v_order_creator_id
+  FROM public.orders o
+  WHERE o.id = v_payment.order_id;
+
   IF v_payment.status = 'completed' THEN
-    SELECT d.token, d.order_id, d.product_id
-    INTO v_download.download_token, v_download.order_id, v_download.product_id
+    SELECT * INTO v_download
     FROM public.downloads d
     WHERE d.order_id = v_payment.order_id;
 
-    RETURN QUERY SELECT
-      v_download.download_token::text,
-      true,
-      v_payment.order_id,
-      v_download.product_id
-    WHERE v_download.download_token IS NOT NULL;
+    IF FOUND THEN
+      RETURN QUERY SELECT
+    v_download.token::text,
+    false,
+    v_payment.order_id,
+    v_download.product_id;
+    END IF;
     RETURN;
   END IF;
 
@@ -175,21 +200,21 @@ BEGIN
   SET status = 'paid', paid_at = now(), updated_at = now()
   WHERE id = v_payment.order_id AND status <> 'paid';
 
-  SELECT c.* INTO v_config FROM public.platform_config c WHERE c.key = 'commission_rate';
-  v_config.value := COALESCE(v_config.value, '0.1')::numeric;
+  SELECT COALESCE(c.value::numeric, 0.1) INTO v_commission_rate
+  FROM public.platform_config c WHERE c.key = 'commission_rate';
 
   UPDATE public.orders
-  SET platform_fee = ROUND(v_order.amount * (v_config.value::numeric)),
-      creator_earnings = v_order.amount - ROUND(v_order.amount * (v_config.value::numeric)),
+  SET platform_fee = ROUND(v_order_amount * v_commission_rate),
+      creator_earnings = v_order_amount - ROUND(v_order_amount * v_commission_rate),
       updated_at = now()
   WHERE id = v_payment.order_id;
 
-  PERFORM public.increment_creator_balance(v_order.ord_creator_id, v_order.amount - ROUND(v_order.amount * (v_config.value::numeric)));
+  PERFORM public.increment_creator_balance(v_order_creator_id, v_order_amount - ROUND(v_order_amount * v_commission_rate));
 
   INSERT INTO public.downloads (order_id, product_id, token, expires_at)
-  VALUES (v_payment.order_id, v_order.ord_product_id, gen_random_uuid()::text, now() + interval '7 days')
+  VALUES (v_payment.order_id, v_order_product_id, gen_random_uuid(), now() + interval '7 days')
   ON CONFLICT (order_id) DO UPDATE SET token = EXCLUDED.token, expires_at = EXCLUDED.expires_at, downloaded_at = null, updated_at = now()
-  RETURNING token, order_id, product_id INTO v_download;
+  RETURNING * INTO v_download;
 
   RETURN QUERY SELECT
     v_download.token::text,
@@ -340,10 +365,16 @@ $$;
 -- PART 8: Add set_updated_at trigger to refunds table
 -- ============================================================
 
-CREATE TRIGGER refunds_updated_at
-  BEFORE UPDATE ON public.refunds
-  FOR EACH ROW
-  EXECUTE FUNCTION public.set_updated_at();
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_class WHERE relname = 'refunds' AND relnamespace = 'public'::regnamespace) THEN
+    CREATE TRIGGER refunds_updated_at
+      BEFORE UPDATE ON public.refunds
+      FOR EACH ROW
+      EXECUTE FUNCTION public.set_updated_at();
+  END IF;
+END;
+$$;
 
 -- ============================================================
 -- PART 9: Fix notify_refund_status_change() — notify on rejection too
